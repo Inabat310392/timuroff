@@ -772,16 +772,12 @@ textarea {
     </div>
   </div>
 
-  <!-- ДЕНЬГИ -->
+  <!-- СДАЧА -->
   <div class="page" id="page-money">
     <div style="padding-top:10px;">
       <div class="section">
-        <div class="section-title"><span class="ti">💰</span> Отчёт за день</div>
-        <div class="stat-grid" id="moneyDetailGrid"></div>
-      </div>
-      <div class="section">
-        <div class="section-title"><span class="ti">💳</span> Погашения долгов сегодня</div>
-        <div class="card-list" id="debtPaymentsToday"></div>
+        <div class="section-title"><span class="ti">💰</span> Сдача за день</div>
+        <div class="card-list" id="moneyDetailGrid"></div>
       </div>
     </div>
   </div>
@@ -955,7 +951,7 @@ textarea {
 
 <nav class="tab-bar" id="tabBar">
   <div class="tab-item active" data-page="overview"><span class="tab-icon">📊</span><span>Обзор</span></div>
-  <div class="tab-item" data-page="money"><span class="tab-icon">💰</span><span>Деньги</span></div>
+  <div class="tab-item" data-page="money"><span class="tab-icon">💰</span><span>Сдача</span></div>
   <div class="tab-item" data-page="debts"><span class="tab-icon">💸</span><span>Долги</span></div>
   <div class="tab-item" data-page="visits"><span class="tab-icon">📋</span><span>Визиты</span></div>
   <div class="tab-item" data-page="analytics"><span class="tab-icon">📈</span><span>Аналитика</span></div>
@@ -986,6 +982,7 @@ const STORES_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/stores";
 const PRODUCTS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/products";
 const VISITS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/visits";
 const STOCK_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/stock";
+const SHIFTS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/shifts";
 const DEBTS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/debts";
 const DEBT_PAYMENTS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/debt_payments";
 const SHIFT_HISTORY_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/shift_history";
@@ -1007,7 +1004,7 @@ let PRODUCT_ADMIN_ROWS = fallbackProducts.map((p, i) => ({ ...p, cost: 0, is_act
 let PRODUCTS_FROM_CLOUD = false;
 let productsManageMode = "active";
 
-let DB = { stores:[], agents:[], stock:{}, visits:[], cons:[], shiftHistory:[], adjustments:[] };
+let DB = { stores:[], agents:[], stock:{}, shifts:[], visits:[], cons:[], shiftHistory:[], adjustments:[] };
 
 function agentIdOf(agent) {
   return agent?.agent_id || agent?.id || "";
@@ -1482,12 +1479,28 @@ async function loadStockFromCloud() {
   }
 }
 
+async function loadShiftsFromCloud() {
+  try {
+    const r = await fetch(
+      SHIFTS_URL + "?select=*&order=work_date.desc",
+      { headers: SUPA_HEAD }
+    );
+    if (!r.ok) throw new Error(await r.text());
+    const rows = await r.json();
+    DB.shifts = Array.isArray(rows) ? rows : [];
+  } catch (e) {
+    console.error("loadShiftsFromCloud error:", e);
+    DB.shifts = DB.shifts || [];
+  }
+}
+
 async function loadAllSupabaseData() {
   await loadProductsFromCloud();
   await loadAgentsFromCloud();
   await loadStoresFromCloud();
   await loadVisitsFromCloud();
   await loadStockFromCloud();
+  await loadShiftsFromCloud();
 }
 
 async function ensureStockRowsForAgent(agentId) {
@@ -1586,7 +1599,8 @@ async function loadData() {
       loadAgentsFromCloud(),
       loadStoresFromCloud(),
       loadVisitsFromCloud(),
-      loadStockFromCloud()
+      loadStockFromCloud(),
+      loadShiftsFromCloud()
     ]);
     try {
       const debtsCount = await loadDebtsFromCloud();
@@ -2191,43 +2205,171 @@ function renderVisits() {
   });
 }
 
-function renderMoney() {
-  const date = currentDate;
-  let mv = getVisitsByDate(date).filter(v=>v.status==="Посещено");
-  mv = filterByRep(mv, true);
-  let cash=0,kaspi=0,cons=0,totalShip=0,debtPay=0;
-  mv.forEach(v=>{
-    if(v.payment==="cash") cash+=v.total||0;
-    else if(v.payment==="kaspi") kaspi+=v.total||0;
-    else if(v.payment==="cons") cons+=v.total||0;
-    PRODUCTS.forEach(p=>{ const it=(v.items||{})[p.id]||{}; totalShip+=(Number(it.ship)||0)*p.price; });
-  });
-  const payments=[];
-  let allCons = DB.cons.filter(c => !c.deletedAt && isSelectedAgent(c));
-  allCons.forEach(c=>(c.payments||[]).filter(isSelectedAgentPayment).forEach(p=>{ if(p.date===date){ debtPay+=Number(p.amount)||0; payments.push({rep:getRepName(c),storeId:c.storeId,amount:p.amount,remaining:c.amount,date:p.date}); } }));
-  $("moneyDetailGrid").innerHTML = `
-    <div class="stat-block"><div class="stat-lbl">💵 Наличные</div><div class="stat-val blue">${money(cash)}</div></div>
-    <div class="stat-block"><div class="stat-lbl">💳 Kaspi</div><div class="stat-val blue">${money(kaspi)}</div></div>
-    <div class="stat-block"><div class="stat-lbl">📝 Конс.</div><div class="stat-val orange">${money(cons)}</div></div>
-    <div class="stat-block"><div class="stat-lbl">💚 Оплата долгов</div><div class="stat-val green">${money(debtPay)}</div></div>
-    <div class="stat-block span2"><div class="stat-lbl">✅ Общий приход</div><div class="stat-val green">${money(cash+kaspi+debtPay)}</div></div>
-  `;
-  if (!payments.length) {
-    $("debtPaymentsToday").innerHTML = '<div class="empty-state"><div class="icon">💳</div>Погашений долгов нет</div>';
-    return;
+function getShiftForAgentDate(agentId, date) {
+  return (DB.shifts || []).find(shift =>
+    recordAgentId(shift) === agentId && (shift.work_date || shift.date || "") === date
+  ) || null;
+}
+
+function getCashHandoverAgents(date) {
+  if (selectedAgentId !== "all") {
+    const agent = findAgentById(selectedAgentId);
+    return agent ? [agent] : [{ id: selectedAgentId, agent_id: selectedAgentId, name: selectedAgentId }];
   }
-  $("debtPaymentsToday").innerHTML = payments.map(p=>`
+  const byId = new Map();
+  getActiveAgents().forEach(agent => {
+    const id = agentIdOf(agent);
+    if (id) byId.set(id, agent);
+  });
+  (DB.shifts || []).forEach(shift => {
+    if ((shift.work_date || shift.date || "") !== date) return;
+    const id = recordAgentId(shift);
+    if (id && !byId.has(id)) byId.set(id, findAgentById(id) || { id, agent_id: id, name: id });
+  });
+  (DB.visits || []).forEach(visit => {
+    if ((visit.date || "") !== date) return;
+    const id = recordAgentId(visit);
+    if (id && !byId.has(id)) byId.set(id, findAgentById(id) || { id, agent_id: id, name: id });
+  });
+  return [...byId.values()];
+}
+
+function getCashHandoverProducts(startStock, visits) {
+  const productMap = new Map();
+  (PRODUCT_ADMIN_ROWS && PRODUCT_ADMIN_ROWS.length ? PRODUCT_ADMIN_ROWS : PRODUCTS).forEach(p => productMap.set(p.id, p));
+  PRODUCTS.forEach(p => productMap.set(p.id, p));
+  Object.keys(startStock || {}).forEach(id => {
+    if (!productMap.has(id)) productMap.set(id, { id, name: id, price: 0 });
+  });
+  (visits || []).forEach(v => {
+    Object.keys(v.items || {}).forEach(id => {
+      if (!productMap.has(id)) productMap.set(id, { id, name: id, price: 0 });
+    });
+  });
+  return [...productMap.values()];
+}
+
+function buildCashHandoverReport(agent, date) {
+  const agentId = agentIdOf(agent);
+  const shift = getShiftForAgentDate(agentId, date);
+  const startStock = shift?.start_stock && typeof shift.start_stock === "object" ? shift.start_stock : null;
+  const hasStartStock = !!startStock && Object.keys(startStock).length > 0;
+  const visits = (DB.visits || []).filter(v =>
+    (v.date || "") === date && v.status === "Посещено" && recordAgentId(v) === agentId
+  );
+  const productRows = [];
+  const warnings = [];
+  let issuedQty = 0, issuedSum = 0, soldQty = 0, soldSum = 0;
+  let returnQty = 0, returnSum = 0, exchangeQty = 0, exchangeSum = 0;
+  let bonusQty = 0, bonusSum = 0, consSum = 0, kaspiSum = 0, cashByVisits = 0;
+
+  visits.forEach(v => {
+    if (v.payment === "cash") cashByVisits += Number(v.total) || 0;
+    else if (v.payment === "kaspi") kaspiSum += Number(v.total) || 0;
+    else if (v.payment === "cons") consSum += Number(v.total) || 0;
+  });
+
+  getCashHandoverProducts(startStock, visits).forEach(p => {
+    const issued = Number(startStock?.[p.id]) || 0;
+    let ship = 0, exchange = 0, bonus = 0;
+    visits.forEach(v => {
+      const it = (v.items || {})[p.id] || {};
+      ship += Number(it.ship) || 0;
+      exchange += Number(it.exchange) || 0;
+      bonus += Number(it.bonus) || 0;
+    });
+    const rawReturn = issued - ship - exchange - bonus;
+    const returned = Math.max(0, rawReturn);
+    if (rawReturn < 0) warnings.push(`По товару ${p.name} расход больше выданного на ${Math.abs(rawReturn)} шт`);
+
+    issuedQty += issued; issuedSum += issued * p.price;
+    soldQty += ship; soldSum += ship * p.price;
+    returnQty += returned; returnSum += returned * p.price;
+    exchangeQty += exchange; exchangeSum += exchange * p.price;
+    bonusQty += bonus; bonusSum += bonus * p.price;
+
+    if (issued || ship || returned || exchange || bonus) {
+      productRows.push({ name: p.name, issued, ship, returned, exchange, bonus, sum: ship * p.price });
+    }
+  });
+
+  const cashToSubmit = issuedSum - returnSum - exchangeSum - bonusSum - kaspiSum - consSum;
+  const cashDiff = cashToSubmit - cashByVisits;
+  return {
+    agent, agentId, shift, hasStartStock, visits, productRows, warnings,
+    issuedQty, issuedSum, soldQty, soldSum, returnQty, returnSum,
+    exchangeQty, exchangeSum, bonusQty, bonusSum, consSum, kaspiSum,
+    cashByVisits, cashToSubmit, cashDiff
+  };
+}
+
+function renderCashHandoverCard(report) {
+  const agentName = report.agent?.name || report.agentId || "Торговый";
+  if (!report.shift) {
+    return `<div class="card-item"><div class="card-head"><span class="card-store">Торговый: ${esc(agentName)}</span></div><div class="empty-state"><div class="icon">📭</div>Смена за этот день не найдена</div></div>`;
+  }
+  if (!report.hasStartStock) {
+    return `<div class="card-item"><div class="card-head"><span class="card-store">Торговый: ${esc(agentName)}</span></div><div class="empty-state"><div class="icon">📦</div>Нет данных по утреннему остатку</div></div>`;
+  }
+
+  const diffHtml = report.cashDiff === 0
+    ? `<div class="alert ok">✅ Сходится</div>`
+    : `<div class="alert warn" style="background:var(--red-bg);border-left-color:var(--red);color:var(--red);">⚠️ Расхождение: ${money(report.cashDiff)}</div>`;
+  const noVisitsHtml = report.visits.length ? "" : `<div class="alert warn">Визитов за этот день нет</div>`;
+  const warningsHtml = report.warnings.length
+    ? report.warnings.map(w => `<div class="alert warn">⚠️ ${esc(w)}</div>`).join("")
+    : "";
+  const productRows = report.productRows.length ? report.productRows.map(row => `
+    <tr>
+      <td>${esc(row.name)}</td>
+      <td>${row.issued}</td>
+      <td>${row.ship}</td>
+      <td>${row.returned}</td>
+      <td>${row.exchange}</td>
+      <td>${row.bonus}</td>
+      <td>${money(row.sum)}</td>
+    </tr>
+  `).join("") : `<tr><td colspan="7">Нет движения по товарам</td></tr>`;
+
+  return `
     <div class="card-item">
       <div class="card-head">
-        <span class="card-store">${esc(storeById(p.storeId))}</span>
-        <span class="card-sum">${money(p.amount)}</span>
+        <span class="card-store">Торговый: ${esc(agentName)}</span>
+        <span class="card-sum">${money(report.cashToSubmit)}</span>
       </div>
       <div class="card-body">
-        <div class="card-kv"><div class="card-k">Торговый</div><div class="card-v">${esc(p.rep)}</div></div>
-        <div class="card-kv"><div class="card-k">Остаток долга</div><div class="card-v red">${money(p.remaining)}</div></div>
+        <div class="card-kv"><div class="card-k">Выдано утром</div><div class="card-v">${report.issuedQty} шт · ${money(report.issuedSum)}</div></div>
+        <div class="card-kv"><div class="card-k">Продано/отгружено</div><div class="card-v blue">${report.soldQty} шт · ${money(report.soldSum)}</div></div>
+        <div class="card-kv"><div class="card-k">Возврат на склад</div><div class="card-v">${report.returnQty} шт · ${money(report.returnSum)}</div></div>
+        <div class="card-kv"><div class="card-k">Обмен</div><div class="card-v orange">${report.exchangeQty} шт · ${money(report.exchangeSum)}</div></div>
+        <div class="card-kv"><div class="card-k">Бонус</div><div class="card-v purple">${report.bonusQty} шт · ${money(report.bonusSum)}</div></div>
+        <div class="card-kv"><div class="card-k">Долг / консигнация</div><div class="card-v orange">${money(report.consSum)}</div></div>
+        <div class="card-kv"><div class="card-k">Kaspi</div><div class="card-v blue">${money(report.kaspiSum)}</div></div>
+        <div class="card-kv"><div class="card-k">Наличные по CRM</div><div class="card-v green">${money(report.cashByVisits)}</div></div>
+        <div class="card-kv span2"><div class="card-k">ИТОГО НАЛИЧКА К СДАЧЕ</div><div class="card-v green" style="font-size:24px">${money(report.cashToSubmit)}</div></div>
+        <div class="card-kv"><div class="card-k">Расхождение</div><div class="card-v ${report.cashDiff === 0 ? "green" : "red"}">${money(report.cashDiff)}</div></div>
+      </div>
+      <div style="padding:0 14px 14px;">
+        ${diffHtml}
+        ${noVisitsHtml}
+        ${warningsHtml}
+        <div style="overflow-x:auto;margin-top:10px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr><th>Товар</th><th>Выдано</th><th>Продано</th><th>Возврат</th><th>Обмен</th><th>Бонус</th><th>Сумма продаж</th></tr></thead>
+            <tbody>${productRows}</tbody>
+          </table>
+        </div>
       </div>
     </div>
-  `).join("");
+  `;
+}
+
+function renderMoney() {
+  const date = currentDate;
+  const agents = getCashHandoverAgents(date);
+  $("moneyDetailGrid").innerHTML = agents.length
+    ? agents.map(agent => renderCashHandoverCard(buildCashHandoverReport(agent, date))).join("")
+    : `<div class="empty-state"><div class="icon">👤</div>Нет торговых для выбранной даты</div>`;
 }
 
 function renderDebts() {
@@ -3206,6 +3348,3 @@ window.addEventListener('unhandledrejection', function(e) {
 </script>
 </body>
 </html>
-
-
-

@@ -317,6 +317,21 @@ select {
 .pill.red { background: var(--red-bg); color: var(--red-text); }
 .pill.orange { background: var(--orange-bg); color: var(--orange-text); }
 
+.category-tabs { display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 10px 0 0; scrollbar-width: none; }
+.category-tabs::-webkit-scrollbar { display: none; }
+.category-tab {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.category-tab.active { background: var(--dark); color: var(--text); border-color: var(--dark); }
+
 .products { display: grid; gap: 8px; margin-top: 10px; }
 .prod {
   background: var(--card);
@@ -733,6 +748,11 @@ body.auth-booting #loginScreen { display: none; }
         <option value="Отказ">Отказ</option><option value="Закрыт магазин">Закрыт магазин</option><option value="Перенести">Перенести</option>
       </select>
       <div class="visit-mini-total" id="visitMiniTotal">Итого: 0 ₸ | Отгрузка: 0 | Обмен: 0 | Бонус: 0</div>
+      <div class="category-tabs" id="visitCategoryTabs">
+        <button class="category-tab active" type="button" data-visit-category="sandwich">Сэндвичи</button>
+        <button class="category-tab" type="button" data-visit-category="chechil">Чечил</button>
+        <button class="category-tab" type="button" data-visit-category="kurt">Курт</button>
+      </div>
       <div id="visitProducts" class="products"></div>
       <div id="debtInfoBlock" class="debt-info-line" style="display:none">
         <span>💰 Текущий долг магазина</span>
@@ -890,20 +910,25 @@ let CURRENT_AGENT_ID = "agent_1";
 let CURRENT_AGENT_NAME = "Основной";
 
 const fallbackProducts = [
-  { id: "sandwich_sausage", name: "Сэндвич с колбасой", price: 350 },
-  { id: "sandwich_chicken", name: "Сэндвич с курицей", price: 450 },
-  { id: "hotdog", name: "Хот-дог", price: 350 },
-  { id: "burger", name: "Бургер с курицей", price: 500 },
-  { id: "panini", name: "Панини с охотничьей сосиской", price: 500 },
-  { id: "hunting_sausage", name: "Охотничья колбаса", price: 500 },
-  { id: "chechil_kosichka", name: "Чечил косичка", price: 650 },
-  { id: "chechil_pautina", name: "Чечил паутина", price: 500 },
-  { id: "chechil_spaghetti", name: "Чечил спагетти", price: 550 },
-  { id: "chechil_stick", name: "Чечил палочка", price: 350 }
+  { id: "sandwich_sausage", name: "Сэндвич с колбасой", price: 350, category: "sandwich" },
+  { id: "sandwich_chicken", name: "Сэндвич с курицей", price: 450, category: "sandwich" },
+  { id: "hotdog", name: "Хот-дог", price: 350, category: "sandwich" },
+  { id: "burger", name: "Бургер с курицей", price: 500, category: "sandwich" },
+  { id: "panini", name: "Панини с охотничьей сосиской", price: 500, category: "sandwich" },
+  { id: "hunting_sausage", name: "Охотничья колбаса", price: 500, category: "sandwich" },
+  { id: "chechil_kosichka", name: "Чечил косичка", price: 650, category: "chechil" },
+  { id: "chechil_pautina", name: "Чечил паутина", price: 500, category: "chechil" },
+  { id: "chechil_spaghetti", name: "Чечил спагетти", price: 550, category: "chechil" },
+  { id: "chechil_stick", name: "Чечил палочка", price: 350, category: "chechil" }
 ];
 let PRODUCTS = fallbackProducts.map(p => ({ ...p }));
 let ALL_PRODUCTS = fallbackProducts.map(p => ({ ...p }));
 let PRODUCTS_FROM_CLOUD = false;
+const PRODUCT_CATEGORIES = [
+  { id: "sandwich", label: "Сэндвичи" },
+  { id: "chechil", label: "Чечил" },
+  { id: "kurt", label: "Курт" }
+];
 
 // ============================================
 // STATE
@@ -913,6 +938,7 @@ let cloudReady = false, cloudTimer = null, isSaving = false, isPaying = false, i
 let syncQueue = [];
 let syncPending = false;
 let visitDraft = { storeId: "", status: "Посещено", payment: "", comment: "", items: {} };
+let activeVisitCategory = "sandwich";
 let stockDraft = {};
 let editVisitId = null;
 let editVisitOriginalDate = null;
@@ -929,6 +955,14 @@ const esc = s => String(s ?? "").replace(/[&<>]/g, m => ({ "&": "&amp;", "<": "&
 const money = n => (Math.round(Number(n) || 0)).toLocaleString("ru-RU") + " ₸";
 const storeById = id => (DB.stores.find(s => s.id === id) || {}).name || "Магазин удалён";
 const payName = p => p === "cash" ? "Наличные" : p === "kaspi" ? "Kaspi" : p === "cons" ? "Консигнация" : "Не выбрана";
+const categoryLabel = category => (PRODUCT_CATEGORIES.find(c => c.id === category) || PRODUCT_CATEGORIES[0]).label;
+
+function fallbackCategoryByProduct(product) {
+  const text = `${product?.id || ""} ${product?.name || ""}`.toLowerCase();
+  if (text.includes("chechil") || text.includes("чечил")) return "chechil";
+  if (text.includes("kurt") || text.includes("курт")) return "kurt";
+  return "sandwich";
+}
 
 function agentIdOf(agent) {
   return agent?.agent_id || agent?.id || "";
@@ -952,13 +986,15 @@ function normalizeAgentRow(agent) {
 }
 
 function normalizeProductRow(product) {
+  const category = product?.category || fallbackCategoryByProduct(product);
   return {
     id: String(product?.id || ""),
     name: product?.name || "",
     price: Number(product?.price) || 0,
     cost: Number(product?.cost) || 0,
     is_active: product?.is_active !== false,
-    sort_order: Number(product?.sort_order) || 0
+    sort_order: Number(product?.sort_order) || 0,
+    category: PRODUCT_CATEGORIES.some(c => c.id === category) ? category : fallbackCategoryByProduct(product)
   };
 }
 
@@ -1105,7 +1141,7 @@ function isFlatStockMap(stock) {
 async function loadProductsFromCloud() {
   try {
     const r = await fetch(
-      PRODUCTS_URL + "?select=id,name,price,cost,is_active,sort_order&order=sort_order.asc,name.asc",
+      PRODUCTS_URL + "?select=id,name,price,cost,is_active,sort_order,category&order=sort_order.asc,name.asc",
       { headers: SUPA_HEAD }
     );
     if (!r.ok) throw new Error(await r.text());
@@ -2014,9 +2050,14 @@ function readVisitDraft() {
     ? Math.max(0, Math.min(maxDebt, Math.round(rawDebtValue)))
     : 0;
   PRODUCTS.forEach(p => {
-    const ship = Number(document.querySelector(`.ship[data-p="${p.id}"]`)?.value);
-    const exchange = Number(document.querySelector(`.exchange[data-p="${p.id}"]`)?.value);
-    const bonus = Number(document.querySelector(`.bonus[data-p="${p.id}"]`)?.value);
+    const shipEl = document.querySelector(`.ship[data-p="${p.id}"]`);
+    const exchangeEl = document.querySelector(`.exchange[data-p="${p.id}"]`);
+    const bonusEl = document.querySelector(`.bonus[data-p="${p.id}"]`);
+    if (!shipEl && !exchangeEl && !bonusEl) return;
+    const current = visitDraft.items[p.id] || {};
+    const ship = shipEl ? Number(shipEl.value) : Number(current.ship);
+    const exchange = exchangeEl ? Number(exchangeEl.value) : Number(current.exchange);
+    const bonus = bonusEl ? Number(bonusEl.value) : Number(current.bonus);
     visitDraft.items[p.id] = {
       ship: Number.isFinite(ship) ? Math.max(0, Math.round(ship)) : 0,
       exchange: Number.isFinite(exchange) ? Math.max(0, Math.round(exchange)) : 0,
@@ -2406,29 +2447,21 @@ function clampExchangeInputs() {
   // Обмен не влияет на сумму визита, поэтому может быть больше отгрузки.
 }
 
-function renderVisitForm() {
+function renderVisitProducts() {
   const d = getDate();
   const editInfo = editVisitId ? findVisitById(editVisitId) : null;
   const isArchiveEdit = editInfo?.source === 'archive';
-  
-  const sel = $("visitStore");
-  const prevStore = sel.value || visitDraft.storeId;
-  const activeStores = getActiveStores();
-  sel.innerHTML = activeStores.length ? activeStores.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("") : `<option value="">— Добавь магазин —</option>`;
-  if (prevStore) sel.value = prevStore;
-  if (!sel.value && activeStores.length) sel.value = activeStores[0].id;
-  $("visitStatus").value = visitDraft.status || "Посещено";
-  $("payType").value = visitDraft.payment || "";
-  $("visitComment").value = visitDraft.comment || "";
-  $("debtPayInput").value = String(Number(visitDraft.debtPayment) || 0);
-  
-  updateDebtInfo();
-  updateDebtPayFeedback();
-  
   if (!visitDraft.items) visitDraft.items = {};
   const rem = isArchiveEdit ? {} : calcRem(d);
   const box = $("visitProducts");
-  box.innerHTML = PRODUCTS.map(p => {
+  if (!box) return;
+  const categoryProducts = PRODUCTS.filter(p => (p.category || fallbackCategoryByProduct(p)) === activeVisitCategory);
+
+  document.querySelectorAll("button[data-visit-category]").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.visitCategory === activeVisitCategory);
+  });
+
+  box.innerHTML = categoryProducts.length ? categoryProducts.map(p => {
     const it = visitDraft.items[p.id] || {};
     const avail = rem[p.id] || 0;
     let badgeClass = "avail-badge blue";
@@ -2462,7 +2495,7 @@ function renderVisitForm() {
         <div><label>Бонус</label><input class="bonus" data-p="${p.id}" type="number" inputmode="numeric" pattern="[0-9]*" min="0" value="${bo}"></div>
       </div>
     </div>`;
-  }).join("");
+  }).join("") : `<div class="empty">В этой категории пока нет товаров</div>`;
   setupNumberInputs();
   
   document.querySelectorAll(".ship, .exchange").forEach(el => {
@@ -2480,6 +2513,23 @@ function renderVisitForm() {
   });
   
   calcVisitSum();
+}
+
+function renderVisitForm() {
+  const sel = $("visitStore");
+  const prevStore = sel.value || visitDraft.storeId;
+  const activeStores = getActiveStores();
+  sel.innerHTML = activeStores.length ? activeStores.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("") : `<option value="">— Добавь магазин —</option>`;
+  if (prevStore) sel.value = prevStore;
+  if (!sel.value && activeStores.length) sel.value = activeStores[0].id;
+  $("visitStatus").value = visitDraft.status || "Посещено";
+  $("payType").value = visitDraft.payment || "";
+  $("visitComment").value = visitDraft.comment || "";
+  $("debtPayInput").value = String(Number(visitDraft.debtPayment) || 0);
+  
+  updateDebtInfo();
+  updateDebtPayFeedback();
+  renderVisitProducts();
 }
 
 function renderAll() {
@@ -3475,6 +3525,16 @@ function bindEvents() {
       document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
       $(`panel-${btn.dataset.panel}`).classList.add("active");
       renderAll();
+    };
+  });
+  document.querySelectorAll("[data-visit-category]").forEach(btn => {
+    btn.onclick = () => {
+      readVisitDraft();
+      activeVisitCategory = btn.dataset.visitCategory;
+      document.querySelectorAll(".category-tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderVisitProducts();
+      calcVisitSum();
     };
   });
   $("workDate").onchange = () => {

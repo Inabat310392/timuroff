@@ -988,21 +988,26 @@ const DEBT_PAYMENTS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/debt
 const SHIFT_HISTORY_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/shift_history";
 
 const fallbackProducts = [
-  { id: "hotdog",           name: "Хот-дог",           price: 350 },
-  { id: "sandwich_sausage", name: "Сэндвич с колбасой", price: 350 },
-  { id: "sandwich_chicken", name: "Сэндвич с курицей", price: 450 },
-  { id: "burger",           name: "Бургер с курицей",   price: 500 },
-  { id: "panini",           name: "Панини",             price: 500 },
-  { id: "hunting_sausage",  name: "Охотничья колбаса", price: 500 },
-  { id: "chechil_kosichka", name: "Чечил косичка",      price: 650 },
-  { id: "chechil_pautina",  name: "Чечил паутина",      price: 500 },
-  { id: "chechil_spaghetti",name: "Чечил спагетти",     price: 550 },
-  { id: "chechil_stick",    name: "Чечил палочка",      price: 350 }
+  { id: "hotdog",           name: "Хот-дог",           price: 350, category: "sandwich" },
+  { id: "sandwich_sausage", name: "Сэндвич с колбасой", price: 350, category: "sandwich" },
+  { id: "sandwich_chicken", name: "Сэндвич с курицей", price: 450, category: "sandwich" },
+  { id: "burger",           name: "Бургер с курицей",   price: 500, category: "sandwich" },
+  { id: "panini",           name: "Панини",             price: 500, category: "sandwich" },
+  { id: "hunting_sausage",  name: "Охотничья колбаса", price: 500, category: "sandwich" },
+  { id: "chechil_kosichka", name: "Чечил косичка",      price: 650, category: "chechil" },
+  { id: "chechil_pautina",  name: "Чечил паутина",      price: 500, category: "chechil" },
+  { id: "chechil_spaghetti",name: "Чечил спагетти",     price: 550, category: "chechil" },
+  { id: "chechil_stick",    name: "Чечил палочка",      price: 350, category: "chechil" }
 ];
 let PRODUCTS = fallbackProducts.map(p => ({ ...p }));
 let PRODUCT_ADMIN_ROWS = fallbackProducts.map((p, i) => ({ ...p, cost: 0, is_active: true, sort_order: i + 1 }));
 let PRODUCTS_FROM_CLOUD = false;
 let productsManageMode = "active";
+const PRODUCT_CATEGORIES = [
+  { id: "sandwich", label: "Сэндвичи" },
+  { id: "chechil", label: "Чечил" },
+  { id: "kurt", label: "Курт" }
+];
 
 let DB = { stores:[], agents:[], stock:{}, shifts:[], visits:[], cons:[], shiftHistory:[], adjustments:[] };
 
@@ -1027,6 +1032,15 @@ function normalizeAgentRow(agent) {
   };
 }
 
+const categoryLabel = category => (PRODUCT_CATEGORIES.find(c => c.id === category) || PRODUCT_CATEGORIES[0]).label;
+
+function fallbackCategoryByProduct(product) {
+  const text = `${product?.id || ""} ${product?.name || ""}`.toLowerCase();
+  if (text.includes("chechil") || text.includes("чечил")) return "chechil";
+  if (text.includes("kurt") || text.includes("курт")) return "kurt";
+  return "sandwich";
+}
+
 function normalizeStoreRow(store) {
   if (!store || typeof store !== "object") return store;
   return {
@@ -1045,13 +1059,15 @@ function normalizeStoreRow(store) {
 }
 
 function normalizeProductRow(product) {
+  const category = product?.category || fallbackCategoryByProduct(product);
   return {
     id: String(product?.id || ""),
     name: product?.name || "",
     price: Number(product?.price) || 0,
     cost: Number(product?.cost) || 0,
     is_active: product?.is_active !== false,
-    sort_order: Number(product?.sort_order) || 0
+    sort_order: Number(product?.sort_order) || 0,
+    category: PRODUCT_CATEGORIES.some(c => c.id === category) ? category : fallbackCategoryByProduct(product)
   };
 }
 
@@ -1198,7 +1214,7 @@ function isFlatStockMap(stock) {
 async function loadProductsFromCloud() {
   try {
     const r = await fetch(
-      PRODUCTS_URL + "?select=id,name,price,cost,is_active,sort_order&order=sort_order.asc,name.asc",
+      PRODUCTS_URL + "?select=id,name,price,cost,is_active,sort_order,category&order=sort_order.asc,name.asc",
       { headers: SUPA_HEAD }
     );
     if (!r.ok) throw new Error(await r.text());
@@ -2598,6 +2614,9 @@ function renderProductsManagement() {
     <div class="filter-row" style="padding:0 0 12px">
       <input class="fsel" id="newProductName" type="text" placeholder="Название товара" style="min-width:180px">
       <input class="fsel" id="newProductPrice" type="number" min="0" placeholder="Цена" style="max-width:120px">
+      <select class="fsel" id="newProductCategory" aria-label="Категория" title="Категория" style="max-width:160px">
+        ${PRODUCT_CATEGORIES.map(cat => `<option value="${cat.id}">${cat.label}</option>`).join("")}
+      </select>
       <button class="analytics-tab" type="button" id="addProductBtn">Добавить товар</button>
     </div>
     <div class="filter-row" style="padding:0 0 12px">
@@ -2615,6 +2634,15 @@ function renderProductsManagement() {
           <div class="card-body">
             <div class="card-kv"><div class="card-k">Цена</div><div class="card-v">${money(p.price)}</div></div>
             <div class="card-kv"><div class="card-k">Продажи</div><div class="card-v">${p.is_active === false ? "скрыт" : "включён"}</div></div>
+            <div class="card-kv"><div class="card-k">Категория</div><div class="card-v">${categoryLabel(p.category || fallbackCategoryByProduct(p))}</div></div>
+            <div class="card-kv">
+              <div class="card-k">Изменить категорию</div>
+              <div class="card-v">
+                <select class="fsel" data-product-category="${esc(p.id)}">
+                  ${PRODUCT_CATEGORIES.map(cat => `<option value="${cat.id}" ${(p.category || fallbackCategoryByProduct(p)) === cat.id ? "selected" : ""}>${cat.label}</option>`).join("")}
+                </select>
+              </div>
+            </div>
           </div>
           <div class="filter-row" style="padding:10px 0 0">
             ${p.is_active === false
@@ -2778,12 +2806,17 @@ async function editProduct(productId) {
   if (rawPrice === null) return;
   const price = Math.max(0, Number(String(rawPrice).replace(/\s/g, "").replace(",", ".")) || 0);
   if (!price) { alert("Введите цену товара"); return; }
+  const selectedCategory = [...document.querySelectorAll("[data-product-category]")]
+    .find(el => el.dataset.productCategory === productId)?.value;
+  const category = PRODUCT_CATEGORIES.some(c => c.id === selectedCategory)
+    ? selectedCategory
+    : (product.category || fallbackCategoryByProduct(product));
   try {
     setStatus("loading");
     const r = await fetch(PRODUCTS_URL + "?id=eq." + encodeURIComponent(productId), {
       method: "PATCH",
       headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: "return=minimal" },
-      body: JSON.stringify({ name, price })
+      body: JSON.stringify({ name, price, category })
     });
     if (!r.ok) throw new Error(await r.text());
     // Локально обновить перед загрузкой
@@ -2792,6 +2825,7 @@ async function editProduct(productId) {
       if (p) {
         p.name = name;
         p.price = price;
+        p.category = category;
       }
     });
     await loadProductsFromCloud();
@@ -2906,6 +2940,8 @@ function productIdFromName(name) {
 async function addProduct() {
   const name = ($("newProductName")?.value || "").trim();
   const price = Math.max(0, Number($("newProductPrice")?.value) || 0);
+  const selectedCategory = $("newProductCategory")?.value;
+  const category = PRODUCT_CATEGORIES.some(c => c.id === selectedCategory) ? selectedCategory : fallbackCategoryByProduct({ id: productIdFromName(name), name });
   const id = productIdFromName(name);
   if (!name) { alert("Введите название товара"); return; }
   if (!price) { alert("Введите цену товара"); return; }
@@ -2930,7 +2966,7 @@ async function addProduct() {
     const r = await fetch(PRODUCTS_URL + "?on_conflict=id", {
       method: "POST",
       headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify({ id, name, price, cost: 0, is_active: true, sort_order })
+      body: JSON.stringify({ id, name, price, cost: 0, is_active: true, sort_order, category })
     });
     if (!r.ok) throw new Error(await r.text());
     await loadProductsFromCloud();
@@ -2943,6 +2979,7 @@ async function addProduct() {
     await loadStockFromCloud();
     if ($("newProductName")) $("newProductName").value = "";
     if ($("newProductPrice")) $("newProductPrice").value = "";
+    if ($("newProductCategory")) $("newProductCategory").value = "sandwich";
     renderAll();
     manageDirty = false;
     setStatus("ok");

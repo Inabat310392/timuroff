@@ -1393,6 +1393,25 @@ async function getOpenShift(agentId) {
   }
 }
 
+async function getShiftByDate(agentId, workDate) {
+  if (!agentId || !workDate) return null;
+  try {
+    const r = await fetch(
+      SHIFTS_URL +
+        "?agent_id=eq." + encodeURIComponent(agentId) +
+        "&work_date=eq." + encodeURIComponent(workDate) +
+        "&select=*&limit=1",
+      { headers: SUPA_HEAD }
+    );
+    if (!r.ok) throw new Error(await r.text());
+    const rows = await r.json();
+    return Array.isArray(rows) && rows.length ? rows[0] : null;
+  } catch (e) {
+    console.error("getShiftByDate error:", e);
+    return null;
+  }
+}
+
 async function refreshCurrentOpenShift(agentId = CURRENT_AGENT_ID) {
   currentOpenShift = await getOpenShift(agentId);
   return currentOpenShift;
@@ -1552,14 +1571,17 @@ async function upsertStockQuantity(productId, quantity) {
       })
     });
     if (!r.ok) throw new Error(await r.text());
+    return true;
   } catch (e) {
     console.error("upsertStockQuantity error:", e);
+    return false;
   }
 }
 
 async function saveStockToCloud(items = DB.stock) {
-  if (!CURRENT_AGENT_ID) return;
-  await Promise.all(PRODUCTS.map(p => upsertStockQuantity(p.id, Number(items?.[p.id]) || 0)));
+  if (!CURRENT_AGENT_ID) return false;
+  const results = await Promise.all(PRODUCTS.map(p => upsertStockQuantity(p.id, Number(items?.[p.id]) || 0)));
+  return results.every(Boolean);
 }
 
 async function saveVisitToCloud(visit) {
@@ -2831,16 +2853,52 @@ function renderShift() {
 async function startShift() {
   const d = getDate();
   const openShift = await refreshCurrentOpenShift(CURRENT_AGENT_ID);
-  if (openShift) { showToast("Сначала закройте текущую смену", true); return; }
+  if (openShift) {
+    if (openShift.work_date === d) {
+      showToast("Смена уже начата");
+      renderAll();
+      return;
+    }
+    showToast("Сначала закройте текущую смену", true);
+    return;
+  }
+
+  const existingShift = await getShiftByDate(CURRENT_AGENT_ID, d);
+  if (existingShift) {
+    if (existingShift.status === "open") {
+      currentOpenShift = existingShift;
+      await refreshCurrentOpenShift(CURRENT_AGENT_ID);
+      renderAll();
+      showToast("Смена уже начата");
+      return;
+    }
+    if (existingShift.status === "closed") {
+      showToast("Смена за этот день уже закрыта", true);
+      return;
+    }
+  }
+
   stockDraft = {};
   PRODUCTS.forEach(p => { const el = $("stk-" + p.id); stockDraft[p.id] = Math.max(0, Number(el?.value || 0)); });
+
+  const stockItems = { ...stockDraft };
+  try {
+    const stockSaved = await saveStockToCloud(stockItems);
+    if (stockSaved === false) {
+      showToast("Остатки не сохранились в облако. Смена не начата.", true);
+      return;
+    }
+  } catch (e) {
+    console.error("startShift stock save error:", e);
+    showToast("Остатки не сохранились в облако. Смена не начата.", true);
+    return;
+  }
+
   if (isFlatStockMap(DB.stock)) {
-    DB.stock = { ...stockDraft };
-    await saveStockToCloud(DB.stock);
+    DB.stock = { ...stockItems };
   } else {
     const target = getStockForAgent(d);
-    target.items = { ...stockDraft };
-    await saveStockToCloud(target.items);
+    target.items = { ...stockItems };
   }
 
   const shiftId = `${CURRENT_AGENT_ID}_${d}_${Date.now()}`;
@@ -2854,10 +2912,29 @@ async function startShift() {
         work_date: d,
         status: "open",
         started_at: new Date().toISOString(),
-        start_stock: { ...stockDraft }
+        start_stock: { ...stockItems }
       })
     });
-    if (!r.ok) throw new Error(await r.text());
+    if (!r.ok) {
+      const errText = await r.text();
+      if (r.status === 409 || errText.includes("duplicate key")) {
+        const shift = await getShiftByDate(CURRENT_AGENT_ID, d);
+        if (shift?.status === "open") {
+          await refreshCurrentOpenShift(CURRENT_AGENT_ID);
+          renderAll();
+          showToast("Смена уже начата");
+          return;
+        }
+        if (shift?.status === "closed") {
+          showToast("Смена за этот день уже закрыта", true);
+          return;
+        }
+        console.error("startShift 409 unexpected shift:", shift);
+        showToast("Ошибка начала смены", true);
+        return;
+      }
+      throw new Error(errText);
+    }
   } catch (e) {
     console.error("startShift error:", e);
     showToast("Ошибка начала смены", true);

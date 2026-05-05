@@ -1008,6 +1008,13 @@ const PRODUCT_CATEGORIES = [
   { id: "chechil", label: "Чечил" },
   { id: "kurt", label: "Курт" }
 ];
+const productsCloudBlockMessage = "Товары не загрузились из облака. Работа заблокирована, чтобы не испортить остатки.";
+
+function blockIfProductsNotCloud() {
+  if (PRODUCTS_FROM_CLOUD) return false;
+  alert(productsCloudBlockMessage);
+  return true;
+}
 
 let DB = { stores:[], agents:[], stock:{}, shifts:[], visits:[], cons:[], shiftHistory:[], adjustments:[] };
 
@@ -1568,6 +1575,7 @@ async function ensureStockRowsForAgent(agentId) {
 
 async function ensureStockForAllAgents() {
   const agents = getActiveAgents();
+  const errors = [];
   for (const agent of agents) {
     const agentId = agentIdOf(agent);
     if (!agentId) continue;
@@ -1575,8 +1583,10 @@ async function ensureStockForAllAgents() {
       await ensureStockRowsForAgent(agentId);
     } catch (e) {
       console.error("ensureStockForAllAgents error:", agentId, e);
+      errors.push({ agentId, error: e });
     }
   }
+  if (errors.length) throw new Error("stock rows failed for agents: " + errors.map(x => x.agentId).join(", "));
 }
 
 async function loadData() {
@@ -2611,13 +2621,14 @@ function renderProductsManagement() {
   const archiveRows = PRODUCT_ADMIN_ROWS.filter(p => p.is_active === false);
   const rows = productsManageMode === "archive" ? archiveRows : activeRows;
   box.innerHTML = `
+    ${PRODUCTS_FROM_CLOUD ? "" : `<div class="alert warn" style="background:var(--red-bg);border-left-color:var(--red);color:var(--red);">${productsCloudBlockMessage}</div>`}
     <div class="filter-row" style="padding:0 0 12px">
       <input class="fsel" id="newProductName" type="text" placeholder="Название товара" style="min-width:180px">
       <input class="fsel" id="newProductPrice" type="number" min="0" placeholder="Цена" style="max-width:120px">
       <select class="fsel" id="newProductCategory" aria-label="Категория" title="Категория" style="max-width:160px">
         ${PRODUCT_CATEGORIES.map(cat => `<option value="${cat.id}">${cat.label}</option>`).join("")}
       </select>
-      <button class="analytics-tab" type="button" id="addProductBtn">Добавить товар</button>
+      <button class="analytics-tab" type="button" id="addProductBtn" ${PRODUCTS_FROM_CLOUD ? "" : "disabled"}>Добавить товар</button>
     </div>
     <div class="filter-row" style="padding:0 0 12px">
       <button class="analytics-tab ${productsManageMode === "active" ? "active" : ""}" type="button" data-product-mode="active">Активные</button>
@@ -2647,7 +2658,7 @@ function renderProductsManagement() {
           <div class="filter-row" style="padding:10px 0 0">
             ${p.is_active === false
               ? `<button class="analytics-tab" type="button" data-restore-product="${esc(p.id)}">Восстановить</button>`
-              : `<button class="analytics-tab" type="button" data-edit-product="${esc(p.id)}">Изменить</button><button class="analytics-tab" type="button" data-delete-product="${esc(p.id)}">Удалить</button><button class="analytics-tab" type="button" data-move-product="${esc(p.id)}" data-move-dir="up">↑ Вверх</button><button class="analytics-tab" type="button" data-move-product="${esc(p.id)}" data-move-dir="down">↓ Вниз</button>`}
+              : `<button class="analytics-tab" type="button" data-edit-product="${esc(p.id)}" ${PRODUCTS_FROM_CLOUD ? "" : "disabled"}>Изменить</button><button class="analytics-tab" type="button" data-delete-product="${esc(p.id)}">Удалить</button><button class="analytics-tab" type="button" data-move-product="${esc(p.id)}" data-move-dir="up">↑ Вверх</button><button class="analytics-tab" type="button" data-move-product="${esc(p.id)}" data-move-dir="down">↓ Вниз</button>`}
           </div>
         </div>
       `).join("") : `<div class="empty-state"><div class="icon">📦</div>${productsManageMode === "archive" ? "Архив пуст" : "Активных товаров нет"}</div>`}
@@ -2796,6 +2807,7 @@ async function updateProductPrice(productId) {
 }
 
 async function editProduct(productId) {
+  if (blockIfProductsNotCloud()) return;
   const product = PRODUCT_ADMIN_ROWS.find(p => p.id === productId);
   if (!product) return;
   const newName = prompt("Название товара", product.name || "");
@@ -2938,6 +2950,7 @@ function productIdFromName(name) {
 }
 
 async function addProduct() {
+  if (blockIfProductsNotCloud()) return;
   const name = ($("newProductName")?.value || "").trim();
   const price = Math.max(0, Number($("newProductPrice")?.value) || 0);
   const selectedCategory = $("newProductCategory")?.value;
@@ -2974,9 +2987,23 @@ async function addProduct() {
       await ensureStockForAllAgents();
     } catch (stockError) {
       console.error("ensureStockForAllAgents error:", stockError);
-      alert("Товар добавлен, но не удалось создать остатки. Обновите админку или проверьте stock.");
+      await loadStockFromCloud();
+      setStatus("err");
+      alert("Товар добавлен, но остатки для торговых не создались. Проверь Supabase.");
+      return;
     }
     await loadStockFromCloud();
+    const createdProduct = PRODUCT_ADMIN_ROWS.find(p => p.id === id);
+    const agents = getActiveAgents();
+    const missingStockAgents = agents.filter(agent => {
+      const agentId = agentIdOf(agent);
+      return agentId && DB.stock?.[agentId]?.[id] === undefined;
+    });
+    if (!createdProduct || missingStockAgents.length) {
+      setStatus("err");
+      alert("Товар добавлен, но остатки для торговых не создались. Проверь Supabase.");
+      return;
+    }
     if ($("newProductName")) $("newProductName").value = "";
     if ($("newProductPrice")) $("newProductPrice").value = "";
     if ($("newProductCategory")) $("newProductCategory").value = "sandwich";

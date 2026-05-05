@@ -2005,10 +2005,10 @@ function calcUsed(date, excludeId = null) {
   return used;
 }
 function calcRem(date, excludeId = null) {
-  const morning = getStockForAgent(date).items || {};
-  const used = calcUsed(date, excludeId);
   const rem = {};
-  PRODUCTS.forEach(p => { rem[p.id] = Math.max(0, (Number(morning[p.id]) || 0) - (used[p.id] || 0)); });
+  PRODUCTS.forEach(p => {
+    rem[p.id] = Number(DB.stock[p.id] || 0);
+  });
   return rem;
 }
 function shiftStats(date) {
@@ -2271,25 +2271,25 @@ async function saveVisit() {
     
     if (existing && !editVisitId && !confirm(`Визит в "${storeById(sid)}" уже есть. Перезаписать?`)) return;
     
-    const duplicateActiveVisit = DB.visits.find(v =>
-      isCurrentAgent(v) &&
-      v.date === d &&
-      v.storeId === sid &&
-      v.id !== (existing?.id || null)
-    );
+    const isEditMode = !!editVisitId && !!existing;
 
-    const duplicateArchiveVisit = getCurrentShiftHistory().some(sh =>
-      Array.isArray(sh.visits) &&
-      sh.visits.some(v =>
+    if (!isEditMode) {
+      const duplicateActiveVisit = DB.visits.find(v =>
+        isCurrentAgent(v) &&
         v.date === d &&
-        v.storeId === sid &&
-        v.id !== (existing?.id || null)
-      )
-    );
-
-    if (duplicateActiveVisit || duplicateArchiveVisit) {
-      showToast("❌ На этот магазин уже есть визит за эту дату", true);
-      return;
+        v.storeId === sid
+      );
+      const duplicateArchiveVisit = getCurrentShiftHistory().some(sh =>
+        Array.isArray(sh.visits) &&
+        sh.visits.some(v =>
+          v.date === d &&
+          v.storeId === sid
+        )
+      );
+      if (duplicateActiveVisit || duplicateArchiveVisit) {
+        showToast("❌ На этот магазин уже есть визит за эту дату", true);
+        return;
+      }
     }
     
     let total = 0;
@@ -2430,18 +2430,25 @@ async function saveVisit() {
     }
 
     // --- ШАГ 3: сохранить остатки ---
-    // nextStock = утренний остаток минус всё потраченное (кроме existing) минус текущий визит.
-    // saveStockToCloud ожидает плоский объект { product_id: quantity }.
+    // Правильная формула: delta = usedOld - usedNew, nextStock = currentStock + delta
     // ship + exchange + bonus — все три уменьшают физический остаток.
     let nextStock = null;
     if (!isEditingArchive) {
-      const remBeforeThisVisit = calcRem(d, existing?.id);
       nextStock = {};
-      PRODUCTS.forEach(p => {
-        const it = items[p.id] || {};
-        const sh = Number(it.ship) || 0, ex = Number(it.exchange) || 0, bo = Number(it.bonus) || 0;
-        nextStock[p.id] = Math.max(0, (Number(remBeforeThisVisit[p.id]) || 0) - sh - ex - bo);
-      });
+      // Валидация и расчёт
+      for (const p of PRODUCTS) {
+        const itNew = items[p.id] || {};
+        const usedNew = (Number(itNew.ship) || 0) + (Number(itNew.exchange) || 0) + (Number(itNew.bonus) || 0);
+        const itOld = existing ? ((existing.items || {})[p.id] || {}) : {};
+        const usedOld = existing ? ((Number(itOld.ship) || 0) + (Number(itOld.exchange) || 0) + (Number(itOld.bonus) || 0)) : 0;
+        const currentStock = Number(DB.stock[p.id] || 0);
+        const nextVal = currentStock + usedOld - usedNew;
+        if (nextVal < 0) {
+          showToast(`Недостаточно остатка по товару: ${p.name}`, true);
+          return;
+        }
+        nextStock[p.id] = nextVal;
+      }
       const stockSaved = await saveStockToCloud(nextStock);
       if (!stockSaved) {
         // Откатываем визит и долг
@@ -2697,9 +2704,10 @@ function renderHome() {
   const hasShift = hasOpenShift();
   let receivedQty = 0, receivedSum = 0;
   if (hasShift) {
-    const morning = getStockForAgent(d).items || {};
+    // "Получено" — утренний остаток на момент начала смены (start_stock)
+    const startStock = (currentOpenShift && currentOpenShift.start_stock) ? currentOpenShift.start_stock : {};
     PRODUCTS.forEach(p => {
-      const q = Number(morning[p.id]) || 0;
+      const q = Number(startStock[p.id]) || 0;
       receivedQty += q;
       receivedSum += q * p.price;
     });
@@ -2992,7 +3000,6 @@ function renderDebts() {
 function renderShift() {
   const d = getDate();
   const started = hasOpenShift();
-  const morning = getStockForAgent(d).items || {};
   $("shiftNotice").textContent = PRODUCTS_FROM_CLOUD
     ? (started ? "✅ Смена начата" : "⏸ Смена не начата")
     : productsCloudBlockMessage;
@@ -3003,8 +3010,11 @@ function renderShift() {
   $("editShiftBtn").disabled = !started || !PRODUCTS_FROM_CLOUD;
   $("endShiftBtn").disabled = !started || !PRODUCTS_FROM_CLOUD;
   const rem = calcRem(d);
+  const startStock = (currentOpenShift && currentOpenShift.start_stock) ? currentOpenShift.start_stock : {};
   $("stockInputs").innerHTML = PRODUCTS.map(p => {
-    const morningVal = Number(morning[p.id]) || (started ? 0 : (stockDraft[p.id] || 0));
+    const morningVal = started
+      ? (Number(startStock[p.id]) || 0)
+      : (stockDraft[p.id] || 0);
     return `<div class="stock-prod">
     <div class="stock-prod-name">${esc(p.name)} ${money(p.price)}</div>
     <div class="stock-grid">
@@ -3162,11 +3172,11 @@ async function editShift() {
   const idx = Number(n)-1;
   const p = PRODUCTS[idx];
   if (!p) { showToast("Неверный номер", true); return; }
-  const current = calcRem(d)[p.id] || 0;
+  const current = Number(DB.stock[p.id] || 0);
   const fact = Number(prompt(`${p.name}\nСейчас: ${current} шт\nФактический остаток:`));
   if (isNaN(fact) || fact < 0) { showToast("Введи число", true); return; }
-  const alreadyUsed = calcUsed(d)[p.id] || 0;
-  const nextStockValue = alreadyUsed + fact;
+  // DB.stock уже текущий — просто записываем фактическое значение напрямую
+  const nextStockValue = fact;
   let stockSaved = false;
   try {
     stockSaved = await upsertStockQuantity(p.id, nextStockValue);
@@ -3177,7 +3187,7 @@ async function editShift() {
     showToast("Остаток не сохранился в облако. Проверь интернет.", true);
     return;
   }
-  getStockForAgent(d).items[p.id] = nextStockValue;
+  DB.stock[p.id] = nextStockValue;
   DB.adjustments.push(withAgentMeta({
     id: uid(), date: d, productId: p.id, productName: p.name,
     crmWas: current, factNew: fact, time: new Date().toISOString(), _updatedAt: new Date().toISOString()
@@ -3196,7 +3206,8 @@ async function closeShift() {
   if (!confirm(`Закрыть смену?\nПродано: ${s.soldQty} шт / ${money(s.soldSum)}\nОбмен: ${s.exchQty} шт / ${money(s.exchSum)}\nВернуть: ${s.leftoverQty} шт / ${money(s.leftoverSum)}\n\nДанные уйдут в архив.`)) return;
 
   const endStock = {};
-  PRODUCTS.forEach(p => { endStock[p.id] = Number((getStockForAgent(d).items || {})[p.id] || 0); });
+  // end_stock = текущий физический остаток из DB.stock
+  PRODUCTS.forEach(p => { endStock[p.id] = Number(DB.stock[p.id] || 0); });
 
   try {
     const r = await fetch(SHIFTS_URL + "?id=eq." + encodeURIComponent(openShift.id), {

@@ -956,6 +956,13 @@ const money = n => (Math.round(Number(n) || 0)).toLocaleString("ru-RU") + " ₸"
 const storeById = id => (DB.stores.find(s => s.id === id) || {}).name || "Магазин удалён";
 const payName = p => p === "cash" ? "Наличные" : p === "kaspi" ? "Kaspi" : p === "cons" ? "Консигнация" : "Не выбрана";
 const categoryLabel = category => (PRODUCT_CATEGORIES.find(c => c.id === category) || PRODUCT_CATEGORIES[0]).label;
+const productsCloudBlockMessage = "Товары не загрузились из облака. Работа заблокирована, чтобы не испортить остатки.";
+
+function blockIfProductsNotCloud() {
+  if (PRODUCTS_FROM_CLOUD) return false;
+  showToast(productsCloudBlockMessage, true);
+  return true;
+}
 
 function fallbackCategoryByProduct(product) {
   const text = `${product?.id || ""} ${product?.name || ""}`.toLowerCase();
@@ -1428,6 +1435,42 @@ async function getOpenShift(agentId) {
   }
 }
 
+async function deleteVisitFromCloud(visitId) {
+  if (!visitId) return false;
+  try {
+    const r = await fetch(VISITS_URL + "?id=eq." + encodeURIComponent(visitId), {
+      method: "DELETE",
+      headers: SUPA_HEAD
+    });
+    if (!r.ok) {
+      console.error("delete visit rollback error:", await r.text());
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("delete visit rollback error:", e);
+    return false;
+  }
+}
+
+async function deleteDebtFromCloud(debtId) {
+  if (!debtId) return false;
+  try {
+    const r = await fetch(DEBTS_URL + "?id=eq." + encodeURIComponent(debtId), {
+      method: "DELETE",
+      headers: SUPA_HEAD
+    });
+    if (!r.ok) {
+      console.error("delete debt rollback error:", await r.text());
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("delete debt rollback error:", e);
+    return false;
+  }
+}
+
 async function getShiftByDate(agentId, workDate) {
   if (!agentId || !workDate) return null;
   try {
@@ -1615,6 +1658,7 @@ async function upsertStockQuantity(productId, quantity) {
 
 async function saveStockToCloud(items = DB.stock) {
   if (!CURRENT_AGENT_ID) return false;
+  if (!PRODUCTS_FROM_CLOUD) return false;
   const results = await Promise.all(PRODUCTS.map(p => upsertStockQuantity(p.id, Number(items?.[p.id]) || 0)));
   return results.every(Boolean);
 }
@@ -2158,6 +2202,7 @@ async function applyDebtPaymentFromVisit(storeId, visitId, date, payAmount) {
 
 async function saveVisit() {
   if (isSaving) return;
+  if (blockIfProductsNotCloud()) return;
   if (!visitDraft.items) visitDraft.items = {};
   isSaving = true;
   const saveBtn = $("saveVisitBtn");
@@ -2295,14 +2340,123 @@ async function saveVisit() {
       }
     }
     
+    const visitId = existing ? existing.id : uid();
     const visit = withAgentMeta({
-      id: existing ? existing.id : uid(),
+      id: visitId,
       date: d, storeId: sid, status: visitDraft.status,
       payment: visitDraft.payment, items, total, comment: visitDraft.comment || "",
       debtPayment: debtPayAmount,
       _updatedAt: new Date().toISOString()
     });
-    
+
+    // =========================================================
+    // ОБЛАЧНЫЕ ОПЕРАЦИИ: строгий порядок debt → visit → stock
+    // Локальный DB не меняем до полного успеха.
+    // =========================================================
+
+    // Переменные для отслеживания что создали (для rollback)
+    let createdDebtId = null;       // новый debt, созданный этим визитом
+    let visitSavedToCloud = false;
+
+    if (!isEditingArchive) {
+      // --- ШАГ 1: debt / cons / debtPayment ---
+      const relatedCons = Array.isArray(DB.cons)
+        ? DB.cons.find(c => c.visitId === visit.id && isCurrentAgent(c))
+        : null;
+      const isSuccessfulCons = visit.status === "Посещено" && visit.payment === "cons" && total > 0;
+
+      try {
+        if (!isSuccessfulCons) {
+          // Отменяем старый долг, если был
+          if (relatedCons) {
+            if (!relatedCons.payments || relatedCons.payments.length === 0) {
+              const rDel = await fetch(DEBTS_URL + "?id=eq." + encodeURIComponent(relatedCons.id), { method: "DELETE", headers: SUPA_HEAD });
+              if (!rDel.ok) throw new Error("delete debt failed: " + await rDel.text());
+            } else {
+              const now = new Date().toISOString();
+              const saved = await saveDebtToCloud({ ...relatedCons, status: "cancelled", amount: 0, cancelledAt: now, cancelReason: "Визит больше не является успешной консигнацией", _updatedAt: now });
+              if (!saved) throw new Error("cancel debt failed");
+            }
+          }
+        } else {
+          // Создаём или обновляем долг консигнации
+          if (relatedCons) {
+            const paid = (relatedCons.payments || []).reduce((s, p) => s + Math.max(0, Number(p?.amount) || 0), 0);
+            const updatedCons = { ...relatedCons, visitId: visit.id, storeId: sid, date: d, originalAmount: total, amount: Math.max(0, total - paid), status: Math.max(0, total - paid) > 0 ? "open" : "paid", _updatedAt: new Date().toISOString() };
+            if (updatedCons.amount === 0) updatedCons.paidDate = d;
+            const saved = await saveDebtToCloud(updatedCons);
+            if (!saved) throw new Error("update debt failed");
+          } else {
+            // Новый долг — сохраняем в Supabase первым
+            const newCons = withAgentMeta({ id: uid(), visitId: visit.id, date: d, storeId: sid, amount: total, originalAmount: total, payments: [], status: "open", createdAt: new Date().toISOString(), _updatedAt: new Date().toISOString() });
+            const saved = await saveDebtToCloud(newCons);
+            if (!saved) throw new Error("create debt failed");
+            createdDebtId = newCons.id;
+            visit._pendingNewCons = newCons;
+          }
+        }
+
+        // debtPayment — откат старого, применение нового
+        if (debtPayAmount > 0) {
+          const rollbackStoreId = existing ? existing.storeId : sid;
+          if (existing && (Number(existing.debtPayment) || 0) > 0) {
+            await rollbackVisitDebtPayments(rollbackStoreId, visit.id);
+          }
+          await applyDebtPaymentFromVisit(sid, visit.id, d, visit.debtPayment);
+        }
+      } catch (debtErr) {
+        console.error("saveVisit debt step error:", debtErr);
+        // Откатываем созданный долг если он был новым
+        if (createdDebtId) {
+          await deleteDebtFromCloud(createdDebtId).catch(e => console.error("debt rollback error:", e));
+        }
+        showToast("Долг/погашение не сохранились в облако. Визит не создан.", true);
+        return;
+      }
+    }
+
+    // --- ШАГ 2: сохранить визит ---
+    try {
+      visitSavedToCloud = await saveVisitToCloud(visit);
+      if (!visitSavedToCloud) throw new Error("saveVisitToCloud returned false");
+    } catch (visitErr) {
+      console.error("saveVisit visit step error:", visitErr);
+      // Откатываем долг если создали в этом визите
+      if (createdDebtId) {
+        await deleteDebtFromCloud(createdDebtId).catch(e => console.error("debt rollback error:", e));
+      }
+      showToast("Визит не сохранился в облако. Проверь интернет.", true);
+      return;
+    }
+
+    // --- ШАГ 3: сохранить остатки ---
+    // nextStock = утренний остаток минус всё потраченное (кроме existing) минус текущий визит.
+    // saveStockToCloud ожидает плоский объект { product_id: quantity }.
+    // ship + exchange + bonus — все три уменьшают физический остаток.
+    let nextStock = null;
+    if (!isEditingArchive) {
+      const remBeforeThisVisit = calcRem(d, existing?.id);
+      nextStock = {};
+      PRODUCTS.forEach(p => {
+        const it = items[p.id] || {};
+        const sh = Number(it.ship) || 0, ex = Number(it.exchange) || 0, bo = Number(it.bonus) || 0;
+        nextStock[p.id] = Math.max(0, (Number(remBeforeThisVisit[p.id]) || 0) - sh - ex - bo);
+      });
+      const stockSaved = await saveStockToCloud(nextStock);
+      if (!stockSaved) {
+        // Откатываем визит и долг
+        await deleteVisitFromCloud(visit.id).catch(e => console.error("visit rollback error:", e));
+        if (createdDebtId) {
+          await deleteDebtFromCloud(createdDebtId).catch(e => console.error("debt rollback error:", e));
+        }
+        showToast("Визит не сохранился полностью. Проверь интернет.", true);
+        return;
+      }
+    }
+
+    // =========================================================
+    // ВСЕ ОБЛАЧНЫЕ ОПЕРАЦИИ УСПЕШНЫ — теперь меняем локальный DB
+    // =========================================================
     if (source === 'archive' && existing) {
       updateVisitInArchive(shiftIndex, visitIndex, visit);
     } else if (existing) {
@@ -2310,90 +2464,60 @@ async function saveVisit() {
     } else {
       DB.visits.push(visit);
     }
-    const visitSavedCloud = await saveVisitToCloud(visit);
-    if (!visitSavedCloud) {
-      showToast("Визит не сохранился в облако. Проверь интернет.", true);
-      return;
+
+    // Применяем новый долг локально
+    if (visit._pendingNewCons) {
+      DB.cons.push(visit._pendingNewCons);
+      delete visit._pendingNewCons;
     }
-    
+
+    // Обновляем локально изменённые cons (при отмене или обновлении долга)
     if (!isEditingArchive) {
-      const relatedCons = Array.isArray(DB.cons)
+      const relatedConsLocal = Array.isArray(DB.cons)
         ? DB.cons.find(c => c.visitId === visit.id && isCurrentAgent(c))
         : null;
-      
-      const isSuccessfulCons = visit.status === "Посещено" && visit.payment === "cons" && total > 0;
-      if (!isSuccessfulCons) {
-        if (relatedCons) {
-          if (!relatedCons.payments || relatedCons.payments.length === 0) {
-            DB.cons = DB.cons.filter(c => c.visitId !== visit.id);
-            try {
-              const r = await fetch(DEBTS_URL + "?id=eq." + encodeURIComponent(relatedCons.id), { method: "DELETE", headers: SUPA_HEAD });
-              if (!r.ok) console.error("delete debt error:", await r.text());
-            } catch (e) {
-              console.error("delete debt error:", e);
-            }
+      if (relatedConsLocal) {
+        const isSuccessfulCons = visit.status === "Посещено" && visit.payment === "cons" && total > 0;
+        if (!isSuccessfulCons) {
+          if (!relatedConsLocal.payments || relatedConsLocal.payments.length === 0) {
+            DB.cons = DB.cons.filter(c => c.visitId !== visit.id || !isCurrentAgent(c));
           } else {
             const now = new Date().toISOString();
-            relatedCons.status = "cancelled";
-            relatedCons.amount = 0;
-            relatedCons.cancelledAt = now;
-            relatedCons.cancelReason = "Визит больше не является успешной консигнацией";
-            relatedCons._updatedAt = now;
-            await saveDebtToCloud(relatedCons);
+            Object.assign(relatedConsLocal, { status: "cancelled", amount: 0, cancelledAt: now, _updatedAt: now });
           }
-        }
-      } else {
-        if (relatedCons) {
-          const paid = (relatedCons.payments || []).reduce((s, p) =>
-            s + Math.max(0, Number(p?.amount) || 0), 0
-          );
-
-          relatedCons.visitId = visit.id;
-          relatedCons.storeId = sid;
-          relatedCons.date = d;
-          relatedCons.originalAmount = total;
-          relatedCons.amount = Math.max(0, total - paid);
-          relatedCons.status = relatedCons.amount > 0 ? "open" : "paid";
-
-          if (relatedCons.amount === 0) relatedCons.paidDate = d;
-
-          relatedCons._updatedAt = new Date().toISOString();
-          await saveDebtToCloud(relatedCons);
         } else {
-          const newCons = withAgentMeta({
-            id: uid(),
-            visitId: visit.id,
-            date: d,
-            storeId: sid,
-            amount: total,
-            originalAmount: total,
-            payments: [],
-            status: "open",
-            createdAt: new Date().toISOString(),
-            _updatedAt: new Date().toISOString()
-          });
-          DB.cons.push(newCons);
-          await saveDebtToCloud(newCons);
+          const paid = (relatedConsLocal.payments || []).reduce((s, p) => s + Math.max(0, Number(p?.amount) || 0), 0);
+          relatedConsLocal.originalAmount = total;
+          relatedConsLocal.amount = Math.max(0, total - paid);
+          relatedConsLocal.status = relatedConsLocal.amount > 0 ? "open" : "paid";
+          if (relatedConsLocal.amount === 0) relatedConsLocal.paidDate = d;
+          relatedConsLocal._updatedAt = new Date().toISOString();
         }
       }
-      
-      const rollbackStoreId = existing ? existing.storeId : sid;
-
-      if (existing && (Number(existing.debtPayment) || 0) > 0) {
-        await rollbackVisitDebtPayments(rollbackStoreId, visit.id);
-      }
-
-      await applyDebtPaymentFromVisit(sid, visit.id, d, visit.debtPayment);
     }
-    
+
+    // Обновляем локальный DB.stock рассчитанным остатком (только для не-архивного визита)
+    if (!isEditingArchive && nextStock) {
+      // DB.stock — плоский объект { product_id: qty } для текущего агента
+      if (isFlatStockMap(DB.stock)) {
+        PRODUCTS.forEach(p => { DB.stock[p.id] = nextStock[p.id] ?? 0; });
+      } else {
+        // Вложенный формат date → agentId → items
+        const stockTarget = getStockForAgent(d);
+        if (stockTarget && stockTarget.items) {
+          PRODUCTS.forEach(p => { stockTarget.items[p.id] = nextStock[p.id] ?? 0; });
+        }
+      }
+    }
+
     editVisitId = null;
     editVisitOriginalDate = null;
     visitDraft = { storeId: "", status: "Посещено", payment: "", comment: "", items: {} };
     $("payType").value = "";
     $("debtPayInput").value = "0";
-    
+
     scheduleSaveCloud();
-    if (visitSavedCloud) await loadVisitsFromCloud();
+    await loadVisitsFromCloud();
     renderAll();
     setTimeout(() => renderVisitForm(), 50);
     showToast(`✅ Визит в "${storeById(sid)}" сохранён`);
@@ -2455,6 +2579,13 @@ function renderVisitProducts() {
   const rem = isArchiveEdit ? {} : calcRem(d);
   const box = $("visitProducts");
   if (!box) return;
+  if (!PRODUCTS_FROM_CLOUD) {
+    box.innerHTML = `<div class="notice err">${productsCloudBlockMessage}</div>`;
+    document.querySelectorAll("button[data-visit-category]").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.visitCategory === activeVisitCategory);
+    });
+    return;
+  }
   const categoryProducts = PRODUCTS.filter(p => (p.category || fallbackCategoryByProduct(p)) === activeVisitCategory);
 
   document.querySelectorAll("button[data-visit-category]").forEach(btn => {
@@ -2526,6 +2657,7 @@ function renderVisitForm() {
   $("payType").value = visitDraft.payment || "";
   $("visitComment").value = visitDraft.comment || "";
   $("debtPayInput").value = String(Number(visitDraft.debtPayment) || 0);
+  if ($("saveVisitBtn")) $("saveVisitBtn").disabled = !PRODUCTS_FROM_CLOUD;
   
   updateDebtInfo();
   updateDebtPayFeedback();
@@ -2861,11 +2993,15 @@ function renderShift() {
   const d = getDate();
   const started = hasOpenShift();
   const morning = getStockForAgent(d).items || {};
-  $("shiftNotice").textContent = started ? "✅ Смена начата" : "⏸ Смена не начата";
-  $("shiftNotice").className = started ? "notice ok" : "notice warn";
-  $("startShiftBtn").disabled = started;
-  $("editShiftBtn").disabled = !started;
-  $("endShiftBtn").disabled = !started;
+  $("shiftNotice").textContent = PRODUCTS_FROM_CLOUD
+    ? (started ? "✅ Смена начата" : "⏸ Смена не начата")
+    : productsCloudBlockMessage;
+  $("shiftNotice").className = PRODUCTS_FROM_CLOUD
+    ? (started ? "notice ok" : "notice warn")
+    : "notice err";
+  $("startShiftBtn").disabled = started || !PRODUCTS_FROM_CLOUD;
+  $("editShiftBtn").disabled = !started || !PRODUCTS_FROM_CLOUD;
+  $("endShiftBtn").disabled = !started || !PRODUCTS_FROM_CLOUD;
   const rem = calcRem(d);
   $("stockInputs").innerHTML = PRODUCTS.map(p => {
     const morningVal = Number(morning[p.id]) || (started ? 0 : (stockDraft[p.id] || 0));
@@ -2900,6 +3036,7 @@ function renderShift() {
 }
 
 async function startShift() {
+  if (blockIfProductsNotCloud()) return;
   const d = getDate();
   const openShift = await refreshCurrentOpenShift(CURRENT_AGENT_ID);
   if (openShift) {
@@ -2931,25 +3068,8 @@ async function startShift() {
   PRODUCTS.forEach(p => { const el = $("stk-" + p.id); stockDraft[p.id] = Math.max(0, Number(el?.value || 0)); });
 
   const stockItems = { ...stockDraft };
-  try {
-    const stockSaved = await saveStockToCloud(stockItems);
-    if (stockSaved === false) {
-      showToast("Остатки не сохранились в облако. Смена не начата.", true);
-      return;
-    }
-  } catch (e) {
-    console.error("startShift stock save error:", e);
-    showToast("Остатки не сохранились в облако. Смена не начата.", true);
-    return;
-  }
 
-  if (isFlatStockMap(DB.stock)) {
-    DB.stock = { ...stockItems };
-  } else {
-    const target = getStockForAgent(d);
-    target.items = { ...stockItems };
-  }
-
+  // ШАГ 1: Сначала создаём смену в Supabase
   const shiftId = `${CURRENT_AGENT_ID}_${d}_${Date.now()}`;
   try {
     const r = await fetch(SHIFTS_URL, {
@@ -2969,9 +3089,12 @@ async function startShift() {
       if (r.status === 409 || errText.includes("duplicate key")) {
         const shift = await getShiftByDate(CURRENT_AGENT_ID, d);
         if (shift?.status === "open") {
+          // Смена уже есть — подтягиваем актуальные остатки из облака
+          currentOpenShift = shift;
+          await loadStockFromCloud();
           await refreshCurrentOpenShift(CURRENT_AGENT_ID);
           renderAll();
-          showToast("Смена уже начата");
+          showToast("Смена уже была начата. Остатки загружены из облака.");
           return;
         }
         if (shift?.status === "closed") {
@@ -2982,21 +3105,55 @@ async function startShift() {
         showToast("Ошибка начала смены", true);
         return;
       }
-      throw new Error(errText);
+      // Смена не создалась — НЕ сохраняем остатки, НЕ меняем локально
+      showToast("Ошибка начала смены. Остатки не сохранены.", true);
+      return;
     }
   } catch (e) {
     console.error("startShift error:", e);
-    showToast("Ошибка начала смены", true);
+    // Смена не создалась — НЕ сохраняем остатки, НЕ меняем локально
+    showToast("Ошибка начала смены. Остатки не сохранены.", true);
     return;
+  }
+
+  // ШАГ 2: Смена создана успешно — теперь сохраняем остатки
+  try {
+    const stockSaved = await saveStockToCloud(stockItems);
+    if (stockSaved === false) {
+      // Откатываем смену
+      try {
+        await fetch(SHIFTS_URL + "?id=eq." + encodeURIComponent(shiftId), { method: "DELETE", headers: SUPA_HEAD });
+      } catch (re) { console.error("startShift shift rollback error:", re); }
+      showToast("Остатки не сохранились в облако. Смена отменена.", true);
+      return;
+    }
+  } catch (e) {
+    console.error("startShift stock save error:", e);
+    // Откатываем смену
+    try {
+      await fetch(SHIFTS_URL + "?id=eq." + encodeURIComponent(shiftId), { method: "DELETE", headers: SUPA_HEAD });
+    } catch (re) { console.error("startShift shift rollback error:", re); }
+    showToast("Остатки не сохранились в облако. Смена отменена.", true);
+    return;
+  }
+
+  // ШАГ 3: Оба шага успешны — обновляем локально
+  if (isFlatStockMap(DB.stock)) {
+    DB.stock = { ...stockItems };
+  } else {
+    const target = getStockForAgent(d);
+    target.items = { ...stockItems };
   }
 
   stockDraft = {};
   await refreshCurrentOpenShift(CURRENT_AGENT_ID);
+  saveLocal();
   renderAll();
   showToast("✅ Смена начата");
 }
 
 async function editShift() {
+  if (blockIfProductsNotCloud()) return;
   const d = getDate();
   if (!hasOpenShift()) { showToast("Сначала начни смену", true); return; }
   const list = PRODUCTS.map((p,i)=>`${i+1}. ${p.name}`).join("\n");
@@ -3009,8 +3166,18 @@ async function editShift() {
   const fact = Number(prompt(`${p.name}\nСейчас: ${current} шт\nФактический остаток:`));
   if (isNaN(fact) || fact < 0) { showToast("Введи число", true); return; }
   const alreadyUsed = calcUsed(d)[p.id] || 0;
-  getStockForAgent(d).items[p.id] = alreadyUsed + fact;
-  await upsertStockQuantity(p.id, getStockForAgent(d).items[p.id]);
+  const nextStockValue = alreadyUsed + fact;
+  let stockSaved = false;
+  try {
+    stockSaved = await upsertStockQuantity(p.id, nextStockValue);
+  } catch (e) {
+    console.error("editShift stock save error:", e);
+  }
+  if (!stockSaved) {
+    showToast("Остаток не сохранился в облако. Проверь интернет.", true);
+    return;
+  }
+  getStockForAgent(d).items[p.id] = nextStockValue;
   DB.adjustments.push(withAgentMeta({
     id: uid(), date: d, productId: p.id, productName: p.name,
     crmWas: current, factNew: fact, time: new Date().toISOString(), _updatedAt: new Date().toISOString()
@@ -3021,6 +3188,7 @@ async function editShift() {
 }
 
 async function closeShift() {
+  if (blockIfProductsNotCloud()) return;
   const d = getDate();
   const openShift = await refreshCurrentOpenShift(CURRENT_AGENT_ID);
   if (!openShift) { showToast("Открытой смены нет", true); return; }
@@ -3044,9 +3212,26 @@ async function closeShift() {
   }
 
   const zeroStock = PRODUCTS.reduce((acc, p) => { acc[p.id] = 0; return acc; }, {});
-  await saveStockToCloud(zeroStock);
+  let zeroStockSaved = false;
+  try {
+    zeroStockSaved = await saveStockToCloud(zeroStock);
+  } catch (e) {
+    console.error("closeShift zero stock error:", e);
+  }
+  if (!zeroStockSaved) {
+    showToast("Смена закрыта, но остатки не обнулились в облаке. Проверь интернет и обратись к админу.", true);
+    await refreshCurrentOpenShift(CURRENT_AGENT_ID);
+    await loadStockFromCloud();
+    return;
+  }
   await refreshCurrentOpenShift(CURRENT_AGENT_ID);
   await loadStockFromCloud();
+  const stockAfterClose = getStockForAgent(d).items || {};
+  const stockIsZero = PRODUCTS.every(p => Number(stockAfterClose[p.id]) === 0);
+  if (!stockIsZero) {
+    showToast("Смена закрыта, но остатки не обнулились в облаке. Проверь интернет и обратись к админу.", true);
+    return;
+  }
   renderAll();
   showToast("✅ Смена закрыта");
 }
@@ -3501,7 +3686,6 @@ function showVisitModal(visit) {
 }
 
 function closeModal() { $("visitModal").classList.remove("active"); }
-function doBackup() { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([JSON.stringify(DB,null,2)],{type:"application/json"})); a.download=`crm-backup-${today()}.json`; a.click(); }
 
 function bindEvents() {
   document.querySelectorAll(".nav-btn").forEach(btn => {

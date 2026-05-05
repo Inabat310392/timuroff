@@ -1,0 +1,3211 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TimurOFF">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>TimurOFF Admin</title>
+<link rel="apple-touch-icon" href="logo.png">
+<link rel="apple-touch-icon" sizes="180x180" href="logo.png">
+<link rel="manifest" href="manifest-admin.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d1117;
+  --bg2: #161b22;
+  --card: #1c2128;
+  --card2: #21262d;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #7d8590;
+  --green: #3fb950;
+  --green-bg: rgba(63,185,80,.12);
+  --green-dim: #238636;
+  --blue: #58a6ff;
+  --blue-bg: rgba(88,166,255,.12);
+  --red: #f85149;
+  --red-bg: rgba(248,81,73,.12);
+  --orange: #e3b341;
+  --orange-bg: rgba(227,179,65,.12);
+  --purple: #bc8cff;
+  --font: 'Nunito', -apple-system, sans-serif;
+  --display: 'Bebas Neue', sans-serif;
+  --radius: 8px;
+  --tab-h: 60px;
+  --header-h: 60px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --page-max: 1180px;
+  --shadow: 0 18px 48px rgba(0,0,0,.22);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: var(--font);
+  background:
+    radial-gradient(circle at 20% -10%, rgba(88,166,255,.10), transparent 28rem),
+    radial-gradient(circle at 90% 0%, rgba(63,185,80,.08), transparent 24rem),
+    var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: calc(var(--tab-h) + 20px + var(--safe-bottom));
+  min-height: 100svh;
+  overflow-x: hidden;
+}
+
+/* HEADER */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 220;
+  background: rgba(22,27,34,.92);
+  border-bottom: 1px solid var(--border);
+  padding: calc(var(--safe-top) + 10px) 14px 10px;
+  min-height: calc(var(--header-h) + var(--safe-top));
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 10px 32px rgba(0,0,0,.18);
+}
+.header-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.logo-wrap {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: linear-gradient(135deg, #58a6ff, #bc8cff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  box-shadow: 0 8px 24px rgba(88,166,255,.18);
+}
+.logo-img { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; }
+.header-title {
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: 1.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.sync-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted);
+  transition: background 0.3s;
+  flex-shrink: 0;
+}
+.sync-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); animation: glow 2s ease-in-out infinite; }
+.sync-dot.err { background: var(--red); }
+.sync-dot.loading { background: var(--blue); animation: pulse 0.8s ease-in-out infinite; }
+@keyframes glow { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+@keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.6; transform:scale(0.8); } }
+
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--card); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; cursor: pointer; transition: background 0.15s;
+  color: var(--text); flex-shrink: 0;
+}
+.icon-btn:active { background: var(--card2); transform: scale(0.95); }
+
+.date-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* DATE BAR */
+.date-bar {
+  position: sticky;
+  top: calc(var(--header-h) + var(--safe-top));
+  z-index: 190;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  gap: 8px;
+  background: rgba(13,17,23,.88);
+  border-bottom: 1px solid rgba(48,54,61,.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.date-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.date-nav button {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--text); font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.date-nav button:active { background: var(--card2); }
+.date-label {
+  font-size: 15px; font-weight: 900; color: var(--text);
+  cursor: pointer; padding: 4px 12px; border-radius: 8px;
+  background: var(--card); border: 1px solid var(--border);
+  white-space: nowrap;
+  min-width: 92px;
+  text-align: center;
+}
+.date-label:active { background: var(--card2); }
+.rep-pill {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0 10px; height: 32px;
+  font-size: 13px; font-weight: 700; color: var(--text);
+  cursor: pointer; display: flex; align-items: center; gap: 5px;
+  white-space: nowrap;
+}
+
+/* BOTTOM TAB BAR */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0; right: 0;
+  z-index: 200;
+  height: calc(var(--tab-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.tab-item {
+  flex: 1 1 20%;
+  min-width: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 3px; cursor: pointer;
+  color: var(--muted);
+  font-size: 10px; font-weight: 700;
+  transition: color 0.2s;
+  -webkit-user-select: none;
+  padding: 8px 4px 4px;
+}
+.tab-icon { font-size: 22px; line-height: 1; }
+.tab-item.active { color: var(--blue); }
+.tab-item.active .tab-icon { transform: scale(1.15); }
+.tab-bar::-webkit-scrollbar { display: none; }
+
+main {
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+}
+
+/* PAGES */
+.page { display: none; padding: 12px 12px 16px; }
+.page.active { display: block; animation: fadeUp 0.2s ease; }
+.page > div[style*="padding-top"] { padding-top: 0 !important; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+/* SECTION */
+.section {
+  background: rgba(28,33,40,.94);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow);
+}
+.section-title {
+  font-size: 12px; font-weight: 900;
+  color: var(--muted); text-transform: uppercase;
+  letter-spacing: .7px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* STAT GRID */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.stat-grid.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stat-block {
+  background: linear-gradient(180deg, rgba(33,38,45,.95), rgba(22,27,34,.95));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+}
+.stat-block.span2 { grid-column: span 2; }
+.stat-lbl {
+  font-size: 10px; font-weight: 800;
+  color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 4px;
+}
+.stat-val {
+  font-family: var(--display);
+  font-size: 28px;
+  letter-spacing: 1px;
+  line-height: 1;
+  color: var(--text);
+}
+.stat-val.green { color: var(--green); }
+.stat-val.blue { color: var(--blue); }
+.stat-val.red { color: var(--red); }
+.stat-val.orange { color: var(--orange); }
+.stat-val.purple { color: var(--purple); }
+
+/* CARDS */
+.card-list { display: flex; flex-direction: column; gap: 8px; }
+
+.card-item {
+  background: rgba(28,33,40,.95);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.15s, transform 0.15s, background 0.15s;
+  box-shadow: 0 10px 28px rgba(0,0,0,.16);
+  position: relative;
+}
+.card-item.clickable { cursor: pointer; }
+.card-item.clickable:active { background: var(--card2); border-color: var(--blue); transform: scale(0.99); }
+.card-item.draggable { cursor: grab; }
+.card-item.draggable:active { cursor: grabbing; }
+.card-item.dragging { opacity: 0.5; }
+
+.drag-handle {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 16px;
+  color: var(--muted);
+  cursor: grab;
+  user-select: none;
+}
+.drag-handle:active { cursor: grabbing; }
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid rgba(48,54,61,.72);
+  gap: 10px;
+}
+.card-store { font-size: 15px; font-weight: 900; color: var(--text); flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
+.card-sum { font-family: var(--display); font-size: 22px; letter-spacing: .5px; color: var(--green); white-space: nowrap; flex-shrink: 0; }
+
+.card-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  padding: 10px 14px 12px;
+  gap: 10px;
+}
+.card-kv {
+  display: flex; flex-direction: column; gap: 1px;
+  min-width: 0;
+}
+.card-k { font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.card-v { font-size: 13px; font-weight: 700; color: var(--text); }
+.card-v.green { color: var(--green); }
+.card-v.blue { color: var(--blue); }
+.card-v.red { color: var(--red); }
+.card-v.orange { color: var(--orange); }
+.card-v.purple { color: var(--purple); }
+.card-v.large { font-family: var(--display); font-size: 18px; letter-spacing: 0.5px; }
+
+/* pill badges */
+.pill {
+  display: inline-flex; align-items: center;
+  padding: 3px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 800;
+}
+.pill.green { background: var(--green-bg); color: var(--green); }
+.pill.orange { background: var(--orange-bg); color: var(--orange); }
+.pill.blue { background: var(--blue-bg); color: var(--blue); }
+.pill.red { background: var(--red-bg); color: var(--red); }
+
+/* FILTER CHIPS */
+.filter-scroll {
+  display: flex; gap: 6px;
+  overflow-x: auto; padding-bottom: 2px;
+  margin-bottom: 12px;
+  scrollbar-width: none;
+}
+.filter-scroll::-webkit-scrollbar { display: none; }
+.chip {
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 800;
+  white-space: nowrap; cursor: pointer;
+  background: var(--card2); border: 1px solid var(--border);
+  color: var(--muted); transition: all 0.15s;
+  -webkit-user-select: none;
+}
+.chip.active { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+.chip:active { transform: scale(0.96); }
+
+/* ALERTS */
+.alert {
+  border-radius: 12px; padding: 12px 14px;
+  font-size: 13px; font-weight: 700;
+  margin-bottom: 8px; line-height: 1.4;
+}
+.alert.warn { background: var(--orange-bg); border-left: 3px solid var(--orange); color: var(--orange); }
+.alert.ok { background: var(--green-bg); border-left: 3px solid var(--green); color: var(--green); text-align: center; }
+.alert.info { background: var(--blue-bg); border-left: 3px solid var(--blue); color: var(--blue); }
+
+/* MODAL SHEET */
+.sheet-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  align-items: flex-end;
+}
+.sheet-overlay.active { display: flex; animation: fadein 0.2s ease; }
+@keyframes fadein { from { opacity:0; } to { opacity:1; } }
+
+.sheet {
+  width: 100%; background: var(--bg2);
+  border-top: 1px solid var(--border);
+  border-radius: 20px 20px 0 0;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 0 0 calc(20px + var(--safe-bottom));
+  animation: slideup 0.28s cubic-bezier(.32,.72,0,1);
+}
+@keyframes slideup { from { transform:translateY(100%); } to { transform:none; } }
+
+.sheet-handle {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--border); margin: 12px auto 8px; 
+}
+.sheet-title {
+  font-size: 18px; font-weight: 900;
+  padding: 8px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sheet-body { padding: 16px 20px 0; }
+
+.detail-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 0; border-bottom: 1px solid var(--border);
+  gap: 8px;
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-k { font-size: 13px; font-weight: 700; color: var(--muted); }
+.detail-v { font-size: 14px; font-weight: 800; color: var(--text); text-align: right; }
+.detail-v.big { font-family: var(--display); font-size: 22px; letter-spacing: 0.5px; color: var(--green); }
+
+/* progress bar */
+.progress-wrap { width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.progress-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width 0.4s; }
+.progress-fill.warn { background: var(--orange); }
+.progress-fill.danger { background: var(--red); }
+
+/* PRODUCTS ROW */
+.prod-row {
+  display: flex; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  gap: 8px;
+}
+.prod-row:last-child { border-bottom: none; }
+.prod-name { flex: 1; font-size: 13px; font-weight: 700; }
+.prod-nums { display: flex; gap: 10px; flex-shrink: 0; }
+.prod-num { text-align: center; min-width: 36px; }
+.prod-num .n { font-family: var(--display); font-size: 18px; letter-spacing: 0.5px; }
+.prod-num .l { font-size: 9px; font-weight: 800; color: var(--muted); text-transform: uppercase; }
+
+/* EMPTY */
+.empty-state {
+  text-align: center; padding: 32px 16px;
+  color: var(--muted); font-size: 14px; font-weight: 700;
+}
+.empty-state .icon { font-size: 36px; margin-bottom: 8px; }
+
+/* OVERVIEW */
+.hero-money {
+  padding: 14px 16px 12px;
+  text-align: center;
+}
+.hero-lbl { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.hero-val {
+  font-family: var(--display);
+  font-size: clamp(42px, 12vw, 68px);
+  letter-spacing: 1px;
+  line-height: 1;
+  color: var(--green);
+  text-shadow: 0 0 40px rgba(63,185,80,.28);
+}
+
+/* STATUS STRIP */
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border); margin-bottom: 8px;
+  background: var(--bg2);
+}
+.status-seg {
+  padding: 8px 4px; text-align: center;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+.status-seg:last-child { border-right: none; }
+.status-seg .n { font-family: var(--display); font-size: 22px; letter-spacing: 0.5px; }
+.status-seg .l { font-size: 9px; font-weight: 800; color: var(--muted); text-transform: uppercase; }
+
+/* FILTER ROW */
+.filter-row {
+  display: flex; gap: 6px; overflow-x: auto;
+  padding: 0 0 10px; scrollbar-width: none; margin-bottom: 8px;
+}
+.filter-row::-webkit-scrollbar { display: none; }
+/* select: нужен -webkit-appearance:none чтоб убрать системную стрелку, правый padding под кастомную */
+select.fsel {
+  background: var(--card2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 28px 8px 10px;
+  font-size: 16px; font-weight: 800; color: var(--text);
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+/* input[text/password/etc]: без appearance:none, нормальный padding */
+input.fsel {
+  background: var(--card2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px;
+  font-size: 16px; font-weight: 800; color: var(--text);
+  flex-shrink: 0;
+  outline: none;
+}
+input.fsel:focus {
+  border-color: var(--blue);
+}
+
+textarea {
+  font-size: 16px;
+}
+
+/* simple chart */
+.chart-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+.chart-legend { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; }
+.chart-legend .t { font-size: 12px; font-weight: 900; color: var(--text); }
+.chart-legend .s { font-size: 11px; font-weight: 800; color: var(--muted); }
+.chart-svg { width: 100%; height: 140px; display:block; }
+.chart-axis { stroke: var(--border); stroke-width: 1; opacity: .9; }
+.chart-line { fill: none; stroke: var(--blue); stroke-width: 2.5; }
+.chart-fill { fill: rgba(88,166,255,.12); }
+.chart-dot { fill: var(--blue); }
+.kpi-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.kpi-pill { background: var(--card2); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; font-size: 11px; font-weight: 800; color: var(--muted); }
+.kpi-pill b { color: var(--text); }
+
+/* PTR */
+.ptr-indicator {
+  text-align: center; padding: 8px; font-size: 12px; font-weight: 700;
+  color: var(--muted); height: 0; overflow: hidden;
+  transition: height 0.2s;
+}
+.ptr-indicator.visible { height: 36px; }
+
+@media (min-width: 720px) {
+  body { padding-bottom: calc(var(--tab-h) + 28px + var(--safe-bottom)); }
+  .header, .date-bar { padding-left: max(24px, calc((100vw - var(--page-max)) / 2 + 24px)); padding-right: max(24px, calc((100vw - var(--page-max)) / 2 + 24px)); }
+  .page { padding: 16px 24px 22px; }
+  .stat-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .stat-grid.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .section { padding: 16px; margin-bottom: 12px; }
+  .tab-bar { justify-content: center; }
+  .tab-item { min-width: 0; max-width: 140px; }
+}
+
+@media (max-width: 380px) {
+  .header-title { font-size: 18px; letter-spacing: 1px; }
+  .date-bar { align-items: stretch; }
+  .rep-pill { max-width: 42vw; overflow: hidden; }
+  .rep-pill span { overflow: hidden; text-overflow: ellipsis; }
+  .status-seg .l { font-size: 8px; }
+  .card-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.metric-card {
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.metric-card .stat-lbl {
+  font-size: 11px;
+  letter-spacing: .35px;
+}
+
+.metric-card .stat-val {
+  font-size: 30px;
+  letter-spacing: .5px;
+  overflow-wrap: anywhere;
+}
+
+.section.hero-section {
+  padding: 18px 14px 14px;
+}
+
+.analytics-tabs {
+  position: sticky;
+  top: calc(var(--header-h) + var(--safe-top) + 53px);
+  z-index: 120;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 0 10px;
+  margin-bottom: 10px;
+  scrollbar-width: none;
+  background: linear-gradient(180deg, rgba(13,17,23,.98), rgba(13,17,23,.78));
+}
+
+.analytics-tabs::-webkit-scrollbar { display: none; }
+
+.analytics-tab {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--muted);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.analytics-tab.active {
+  color: var(--blue);
+  border-color: var(--blue);
+  background: var(--blue-bg);
+}
+
+.analytics-panel { display: none; }
+.analytics-panel.active { display: block; }
+
+.manage-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 0 10px;
+  margin-bottom: 10px;
+  scrollbar-width: none;
+}
+.manage-tabs::-webkit-scrollbar { display: none; }
+.manage-tab {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--muted);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.manage-tab.active {
+  color: var(--blue);
+  border-color: var(--blue);
+  background: var(--blue-bg);
+}
+.manage-panel { display: none; }
+.manage-panel.active { display: block; }
+.stat-block.clickable { cursor: pointer; }
+.stat-block.clickable:active { border-color: var(--blue); transform: scale(0.99); }
+
+.agent-save-btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  background: var(--blue-bg);
+  color: var(--blue);
+  border-color: var(--blue);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.agent-save-btn:active { opacity: 0.8; transform: scale(0.97); }
+
+.debt-note {
+  padding: 0 14px 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+@media (min-width: 720px) {
+  .dashboard-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .analytics-tabs { top: calc(var(--header-h) + var(--safe-top) + 53px); }
+}
+.exchange-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.exchange-badge.good { background: var(--green-bg); color: var(--green); }
+.exchange-badge.warn { background: var(--orange-bg); color: var(--orange); }
+.exchange-badge.bad { background: var(--red-bg); color: var(--red); }
+.exchange-mini-bar {
+  width: 100%;
+  height: 5px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.exchange-mini-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+.exchange-mini-fill.good { background: var(--green); }
+.exchange-mini-fill.warn { background: var(--orange); }
+.exchange-mini-fill.bad { background: var(--red); }
+.exchange-problem-note {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--red);
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="logo-wrap">
+      <img src="logo.png" class="logo-img" alt="logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="display:block">
+      <span style="display:none;font-size:18px;">🔥</span>
+    </div>
+    <span class="header-title">TimurOFF 🔥 Admin</span>
+  </div>
+  <div class="header-right">
+    <span class="sync-dot" id="syncDot"></span>
+    <button class="icon-btn" id="refreshBtn" title="Обновить">⟳</button>
+  </div>
+</header>
+
+<div class="date-bar">
+  <div class="date-nav">
+    <button id="prevDay">‹</button>
+    <span class="date-label" id="dateLabelBtn">Сегодня</span>
+    <button id="nextDay">›</button>
+  </div>
+  <div class="rep-pill" id="repPillBtn">👤 <span id="repPillLabel">Все</span></div>
+</div>
+
+<input type="date" id="datePicker" class="date-hidden">
+
+<main>
+  <!-- ОБЗОР -->
+  <div class="page active" id="page-overview">
+    <div class="section hero-section">
+      <div class="hero-money">
+        <div class="hero-lbl">Приход сегодня</div>
+        <div class="hero-val" id="heroTotal">0 ₸</div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title"><span class="ti">📌</span> Главное за день</div>
+      <div class="dashboard-grid" id="moneyOverviewGrid"></div>
+    </div>
+    <div class="section" id="problemsSection">
+      <div class="section-title"><span class="ti">⚠️</span> Проблемы</div>
+      <div id="problemsOverview"></div>
+    </div>
+  </div>
+
+  <!-- ВИЗИТЫ -->
+  <div class="page" id="page-visits">
+    <div style="padding-top:10px;">
+      <div class="filter-row">
+        <select id="sortBy" class="fsel">
+          <option value="time">По времени</option>
+          <option value="store">По магазину</option>
+          <option value="sum">По сумме</option>
+          <option value="status">По статусу</option>
+        </select>
+        <select id="paymentFilter" class="fsel">
+          <option value="all">Все оплаты</option>
+          <option value="cash">💵 Наличные</option>
+          <option value="kaspi">💳 Kaspi</option>
+          <option value="cons">📝 Конс.</option>
+        </select>
+        <select id="statusFilter" class="fsel">
+          <option value="all">Все статусы</option>
+          <option value="Посещено">✅ Посещено</option>
+          <option value="Отказ">❌ Отказ</option>
+          <option value="Закрыт магазин">🔒 Закрыт</option>
+          <option value="Перенести">⏳ Перенос</option>
+        </select>
+      </div>
+      <div class="card-list" id="visitsCardList"></div>
+    </div>
+  </div>
+
+  <!-- ДЕНЬГИ -->
+  <div class="page" id="page-money">
+    <div style="padding-top:10px;">
+      <div class="section">
+        <div class="section-title"><span class="ti">💰</span> Отчёт за день</div>
+        <div class="stat-grid" id="moneyDetailGrid"></div>
+      </div>
+      <div class="section">
+        <div class="section-title"><span class="ti">💳</span> Погашения долгов сегодня</div>
+        <div class="card-list" id="debtPaymentsToday"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ДОЛГИ -->
+  <div class="page" id="page-debts">
+    <div style="padding-top:10px;">
+      <div class="section">
+        <div class="section-title"><span class="ti">🆕</span> Новая консигнация</div>
+        <div class="card-list" id="newConsList"></div>
+      </div>
+      <div class="section">
+        <div class="section-title"><span class="ti">✅</span> Погашения сегодня</div>
+        <div class="card-list" id="debtPaidList"></div>
+      </div>
+      <div class="section">
+        <div class="section-title"><span class="ti">📌</span> Открытые долги</div>
+        <div class="card-list" id="openDebtsList"></div>
+      </div>
+    </div>
+  </div>
+  <!-- АНАЛИТИКА -->
+  <div class="page" id="page-analytics">
+    <div class="analytics-tabs" id="analyticsTabs">
+      <button class="analytics-tab active" data-analytics="stores">По точкам</button>
+      <button class="analytics-tab" data-analytics="reps">По торговым</button>
+      <button class="analytics-tab" data-analytics="products">По товарам</button>
+      <button class="analytics-tab" data-analytics="losses">Потери</button>
+      <button class="analytics-tab" data-analytics="trend">Динамика</button>
+    </div>
+
+    <div class="analytics-panel active" id="analytics-stores">
+      <div class="section">
+        <div class="section-title"><span class="ti">🏪</span> По точкам</div>
+        <div class="filter-row">
+          <select id="rangeStores" class="fsel">
+            <option value="today">Сегодня</option>
+            <option value="week">Неделя</option>
+            <option value="month" selected>30 дней</option>
+            <option value="all">Всё</option>
+          </select>
+          <select id="storeSort" class="fsel">
+            <option value="best" selected>Лучшие (выручка)</option>
+            <option value="worstExchange">Худшие (обмен)</option>
+            <option value="debtors">Должники</option>
+          </select>
+        </div>
+        <div class="card-list" id="storesList"></div>
+      </div>
+    </div>
+
+    <div class="analytics-panel" id="analytics-reps">
+      <div class="section">
+        <div class="section-title"><span class="ti">📊</span> По торговым</div>
+        <div class="filter-row">
+          <select id="rangeReps" class="fsel">
+            <option value="today">Сегодня</option>
+            <option value="week">Неделя</option>
+            <option value="month" selected>30 дней</option>
+            <option value="all">Всё</option>
+          </select>
+          <select id="repSort" class="fsel">
+            <option value="revenue" selected>Выручка ↓</option>
+            <option value="exchange">% обмена ↓</option>
+            <option value="debts">Долги ↓</option>
+          </select>
+        </div>
+        <div class="card-list" id="repsList"></div>
+      </div>
+    </div>
+
+    <div class="analytics-panel" id="analytics-products">
+      <div class="section">
+        <div class="section-title"><span class="ti">📦</span> По товарам</div>
+        <div class="filter-row">
+          <select id="rangeProducts" class="fsel">
+            <option value="today">Сегодня</option>
+            <option value="week">Неделя</option>
+            <option value="month" selected>30 дней</option>
+            <option value="all">Всё</option>
+          </select>
+          <select id="prodSort" class="fsel">
+            <option value="revenue" selected>Выручка ↓</option>
+            <option value="exchange">Обмен ↓</option>
+            <option value="loss">Потери ↓</option>
+          </select>
+        </div>
+        <div id="productsContent"></div>
+      </div>
+    </div>
+
+    <div class="analytics-panel" id="analytics-losses">
+      <div class="section">
+        <div class="section-title"><span class="ti">📉</span> Потери</div>
+        <div class="filter-row">
+          <select id="rangeLosses" class="fsel">
+            <option value="today">Сегодня</option>
+            <option value="week">Неделя</option>
+            <option value="month" selected>30 дней</option>
+            <option value="all">Всё</option>
+          </select>
+        </div>
+        <div class="stat-grid" id="lossesTopGrid"></div>
+        <div style="height:10px"></div>
+        <div class="section-title"><span class="ti">📦</span> Потери по товарам</div>
+        <div class="card-list" id="lossesByProducts"></div>
+        <div style="height:12px"></div>
+        <div class="section-title"><span class="ti">👤</span> Потери по торговым</div>
+        <div class="card-list" id="lossesByReps"></div>
+        <div style="height:12px"></div>
+        <div class="section-title"><span class="ti">🏪</span> Потери по точкам</div>
+        <div class="card-list" id="lossesByStores"></div>
+      </div>
+    </div>
+
+    <div class="analytics-panel" id="analytics-trend">
+      <div class="section">
+        <div class="section-title"><span class="ti">📈</span> Динамика</div>
+        <div class="filter-row">
+          <select id="rangeTrend" class="fsel">
+            <option value="week">7 дней</option>
+            <option value="month" selected>30 дней</option>
+            <option value="all">Всё</option>
+          </select>
+        </div>
+        <div id="trendChart"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- УПРАВЛЕНИЕ -->
+  <div class="page" id="page-manage">
+    <div style="padding-top:10px;">
+      <div class="section">
+        <div class="manage-tabs" id="manageTabs">
+          <button class="manage-tab active" type="button" data-manage="agents">Торговые</button>
+          <button class="manage-tab" type="button" data-manage="products">Товары</button>
+          <button class="manage-tab" type="button" data-manage="reports">Отчёты</button>
+        </div>
+        <div id="manage-agents" class="manage-panel active">
+          <div class="section-title"><span class="ti">👤</span> Торговые</div>
+          <div class="filter-row">
+            <input id="agentName" class="fsel" placeholder="Имя" style="min-width:140px">
+            <input id="agentPhone" class="fsel" placeholder="Телефон" style="min-width:130px">
+            <input id="agentLogin" class="fsel" placeholder="Логин" style="min-width:120px">
+            <input id="agentPin" class="fsel" type="password" placeholder="Введите пароль" autocomplete="new-password" style="min-width:120px">
+            <select id="agentRole" class="fsel" style="min-width:105px"><option value="agent">agent</option><option value="admin">admin</option></select>
+            <button class="agent-save-btn" id="agentSaveBtn" type="button">Добавить</button>
+          </div>
+          <input type="hidden" id="agentId">
+          <div class="card-list" id="agentsList"></div>
+        </div>
+        <div id="manage-products" class="manage-panel">
+          <div class="section-title"><span class="ti">📦</span> Товары</div>
+          <div id="productsManageContent"></div>
+        </div>
+        <div id="manage-reports" class="manage-panel">
+          <div class="section-title"><span class="ti">📊</span> Отчёты</div>
+          <div class="filter-row">
+            <input id="manageReportFrom" class="fsel" type="date" style="min-width:140px">
+            <input id="manageReportTo" class="fsel" type="date" style="min-width:140px">
+            <select id="manageReportAgent" class="fsel" style="min-width:160px"></select>
+            <button class="agent-save-btn" id="manageReportBtn" type="button">Сформировать отчёт</button>
+          </div>
+          <div id="manageReportContent"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<nav class="tab-bar" id="tabBar">
+  <div class="tab-item active" data-page="overview"><span class="tab-icon">📊</span><span>Обзор</span></div>
+  <div class="tab-item" data-page="money"><span class="tab-icon">💰</span><span>Деньги</span></div>
+  <div class="tab-item" data-page="debts"><span class="tab-icon">💸</span><span>Долги</span></div>
+  <div class="tab-item" data-page="visits"><span class="tab-icon">📋</span><span>Визиты</span></div>
+  <div class="tab-item" data-page="analytics"><span class="tab-icon">📈</span><span>Аналитика</span></div>
+  <div class="tab-item" data-page="manage"><span class="tab-icon">⚙️</span><span>Управление</span></div>
+</nav>
+
+<div id="visitSheet" class="sheet-overlay">
+  <div class="sheet" id="sheetInner">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="sheetTitle">Визит</div>
+    <div class="sheet-body" id="sheetBody"></div>
+  </div>
+</div>
+
+<script>
+window.onerror = function(msg, src, line, col, err) {
+  console.error("GLOBAL ERROR:", msg, line, col, err);
+};
+
+// ============================================
+// CONFIG
+// ============================================
+const SUPA_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/app_state";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhza2FkdW1jdmFpcHVxZHRiZWxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxODE0MDcsImV4cCI6MjA5Mjc1NzQwN30.yyuThlkTCXyD49BVe5t1K38sBBcHKTmedy5KMpy6g9Y";
+const SUPA_HEAD = { apikey: SUPA_KEY, Authorization: "Bearer " + SUPA_KEY, "Content-Type": "application/json" };
+const AGENTS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/agents";
+const STORES_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/stores";
+const PRODUCTS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/products";
+const VISITS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/visits";
+const STOCK_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/stock";
+const DEBTS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/debts";
+const DEBT_PAYMENTS_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/debt_payments";
+const SHIFT_HISTORY_URL = "https://hskadumcvaipuqdtbeln.supabase.co/rest/v1/shift_history";
+
+const fallbackProducts = [
+  { id: "hotdog",           name: "Хот-дог",           price: 350 },
+  { id: "sandwich_sausage", name: "Сэндвич с колбасой", price: 350 },
+  { id: "sandwich_chicken", name: "Сэндвич с курицей", price: 450 },
+  { id: "burger",           name: "Бургер с курицей",   price: 500 },
+  { id: "panini",           name: "Панини",             price: 500 },
+  { id: "hunting_sausage",  name: "Охотничья колбаса", price: 500 },
+  { id: "chechil_kosichka", name: "Чечил косичка",      price: 650 },
+  { id: "chechil_pautina",  name: "Чечил паутина",      price: 500 },
+  { id: "chechil_spaghetti",name: "Чечил спагетти",     price: 550 },
+  { id: "chechil_stick",    name: "Чечил палочка",      price: 350 }
+];
+let PRODUCTS = fallbackProducts.map(p => ({ ...p }));
+let PRODUCT_ADMIN_ROWS = fallbackProducts.map((p, i) => ({ ...p, cost: 0, is_active: true, sort_order: i + 1 }));
+let PRODUCTS_FROM_CLOUD = false;
+let productsManageMode = "active";
+
+let DB = { stores:[], agents:[], stock:{}, visits:[], cons:[], shiftHistory:[], adjustments:[] };
+
+function agentIdOf(agent) {
+  return agent?.agent_id || agent?.id || "";
+}
+
+function recordAgentId(record) {
+  return record?.agent_id || record?.createdBy || "";
+}
+
+function normalizeAgentRow(agent) {
+  if (!agent || typeof agent !== "object") return agent;
+  const id = agentIdOf(agent);
+  return {
+    ...agent,
+    id,
+    agent_id: id,
+    pin: agent.pin || agent.password || "",
+    password: agent.password || agent.pin || "",
+    is_active: agent.is_active !== false
+  };
+}
+
+function normalizeStoreRow(store) {
+  if (!store || typeof store !== "object") return store;
+  return {
+    id: store.id,
+    name: store.name || "",
+    address: store.address || "",
+    contact: store.contact || "",
+    phone: store.phone || "",
+    comment: store.comment || "",
+    agent_id: store.agent_id || "",
+    is_active: store.is_active !== false,
+    deletedAt: store.deletedAt || store.deleted_at || null,
+    createdAt: store.createdAt || store.created_at || "",
+    updatedAt: store.updatedAt || store.updated_at || ""
+  };
+}
+
+function normalizeProductRow(product) {
+  return {
+    id: String(product?.id || ""),
+    name: product?.name || "",
+    price: Number(product?.price) || 0,
+    cost: Number(product?.cost) || 0,
+    is_active: product?.is_active !== false,
+    sort_order: Number(product?.sort_order) || 0
+  };
+}
+
+
+function debtToRow(c) {
+  return {
+    id: c.id,
+    visit_id: c.visitId || null,
+    agent_id: c.agent_id || c.createdBy || null,
+    agent_name: c.agent_name || c.repName || null,
+    store_id: c.storeId || null,
+    date: c.date || null,
+    original_amount: Number(c.originalAmount || 0),
+    amount: Number(c.amount || 0),
+    status: c.status || "open",
+    paid_date: c.paidDate || null,
+    cancelled_at: c.cancelledAt || null,
+    cancel_reason: c.cancelReason || null,
+    updated_at: c._updatedAt || new Date().toISOString()
+  };
+}
+
+function rowToDebt(row) {
+  return {
+    id: row.id,
+    visitId: row.visit_id,
+    agent_id: row.agent_id,
+    agent_name: row.agent_name,
+    createdBy: row.agent_id,
+    storeId: row.store_id,
+    date: row.date,
+    originalAmount: Number(row.original_amount || 0),
+    amount: Number(row.amount || 0),
+    status: row.status || "open",
+    paidDate: row.paid_date,
+    cancelledAt: row.cancelled_at,
+    cancelReason: row.cancel_reason,
+    createdAt: row.created_at,
+    _updatedAt: row.updated_at,
+    payments: []
+  };
+}
+
+function debtPaymentToRow(payment, debt) {
+  return {
+    id: payment.id,
+    debt_id: payment.debtId || debt.id,
+    visit_id: payment.visitId || null,
+    agent_id: payment.agent_id || debt.agent_id || debt.createdBy || null,
+    agent_name: payment.agent_name || debt.agent_name || null,
+    store_id: payment.storeId || debt.storeId || null,
+    date: payment.date || null,
+    amount: Number(payment.amount || 0)
+  };
+}
+
+function rowToDebtPayment(row) {
+  return {
+    id: row.id,
+    debtId: row.debt_id,
+    visitId: row.visit_id,
+    agent_id: row.agent_id,
+    agent_name: row.agent_name,
+    createdBy: row.agent_id,
+    storeId: row.store_id,
+    date: row.date,
+    amount: Number(row.amount || 0),
+    createdAt: row.created_at
+  };
+}
+
+async function saveDebtToCloud(c) {
+  if (!c || !c.id) return false;
+  try {
+    const r = await fetch(DEBTS_URL + "?on_conflict=id", {
+      method: "POST",
+      headers: {
+        ...SUPA_HEAD,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(debtToRow(c))
+    });
+    if (!r.ok) {
+      console.error("saveDebtToCloud error:", await r.text());
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("saveDebtToCloud error:", e);
+    return false;
+  }
+}
+
+async function saveDebtPaymentToCloud(payment, debt) {
+  if (!payment || !payment.id || !debt || !debt.id) return false;
+  try {
+    const r = await fetch(DEBT_PAYMENTS_URL + "?on_conflict=id", {
+      method: "POST",
+      headers: {
+        ...SUPA_HEAD,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(debtPaymentToRow(payment, debt))
+    });
+    if (!r.ok) {
+      console.error("saveDebtPaymentToCloud error:", await r.text());
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("saveDebtPaymentToCloud error:", e);
+    return false;
+  }
+}
+
+async function loadDebtsFromCloud() {
+  const debtsResp = await fetch(DEBTS_URL + "?select=*", { headers: SUPA_HEAD });
+  if (!debtsResp.ok) throw new Error(await debtsResp.text());
+  const paymentsResp = await fetch(DEBT_PAYMENTS_URL + "?select=*", { headers: SUPA_HEAD });
+  if (!paymentsResp.ok) throw new Error(await paymentsResp.text());
+
+  const debtRows = await debtsResp.json();
+  const paymentRows = await paymentsResp.json();
+  const debts = (Array.isArray(debtRows) ? debtRows : []).map(rowToDebt);
+  const payments = (Array.isArray(paymentRows) ? paymentRows : []).map(rowToDebtPayment);
+  const byId = {};
+  debts.forEach(d => {
+    d.payments = [];
+    byId[d.id] = d;
+  });
+  payments.forEach(p => {
+    if (p.debtId && byId[p.debtId]) byId[p.debtId].payments.push(p);
+  });
+  DB.cons = debts;
+  return debts.length;
+}
+function isFlatStockMap(stock) {
+  return stock && typeof stock === "object" && !Array.isArray(stock) &&
+    Object.values(stock).some(v => v === null || typeof v !== "object");
+}
+
+async function loadProductsFromCloud() {
+  try {
+    const r = await fetch(
+      PRODUCTS_URL + "?select=id,name,price,cost,is_active,sort_order&order=sort_order.asc,name.asc",
+      { headers: SUPA_HEAD }
+    );
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    const rows = (Array.isArray(data) ? data : []).map(normalizeProductRow).filter(p => p.id);
+    PRODUCTS_FROM_CLOUD = rows.length > 0;
+    if (PRODUCTS_FROM_CLOUD) {
+      PRODUCT_ADMIN_ROWS = rows;
+      PRODUCTS = rows.filter(p => p.is_active !== false).map(p => ({ ...p }));
+    } else {
+      // Supabase вернул пустой список — fallback только для отображения, stock не создаём
+      console.warn("loadProductsFromCloud: Supabase вернул 0 активных товаров, используется fallback для UI");
+      PRODUCT_ADMIN_ROWS = fallbackProducts.map((p, i) => ({ ...p, cost: 0, is_active: true, sort_order: i + 1 }));
+      PRODUCTS = fallbackProducts.map(p => ({ ...p }));
+    }
+  } catch (e) {
+    console.error("loadProductsFromCloud error:", e);
+    PRODUCTS_FROM_CLOUD = false;
+    PRODUCT_ADMIN_ROWS = fallbackProducts.map((p, i) => ({ ...p, cost: 0, is_active: true, sort_order: i + 1 }));
+    PRODUCTS = fallbackProducts.map(p => ({ ...p }));
+  }
+}
+
+function normalizeDB(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  return {
+    stores: Array.isArray(src.stores) ? src.stores : [],
+    agents: Array.isArray(src.agents) ? src.agents.map(normalizeAgentRow) : [],
+    stock: src.stock && typeof src.stock === "object" ? src.stock : {},
+    visits: Array.isArray(src.visits) ? src.visits : [],
+    cons: Array.isArray(src.cons) ? src.cons : [],
+    shiftHistory: Array.isArray(src.shiftHistory) ? src.shiftHistory : [],
+    adjustments: Array.isArray(src.adjustments) ? src.adjustments : [],
+    _lastUpdated: src._lastUpdated || new Date().toISOString()
+  };
+}
+
+function withAgentDefaults(record) {
+  if (!record || typeof record !== "object") return record;
+  return {
+    ...record,
+    agent_id: record.agent_id || "agent_1",
+    agent_name: record.agent_name || record.repName || record.salesRep || "Основной",
+    createdBy: record.createdBy || record.agent_id || "agent_1"
+  };
+}
+
+function migrateDB(raw) {
+  const next = normalizeDB(raw);
+  if (!next.agents.length) {
+    const now = new Date().toISOString();
+    next.agents = [{
+      agent_id: "agent_1",
+      name: "Основной",
+      phone: "",
+      login: "agent1",
+      pin: "1111",
+      role: "agent",
+      is_active: true,
+      createdAt: now,
+      updatedAt: now
+    }];
+  }
+  next.stores = next.stores.map(withAgentDefaults);
+  next.visits = next.visits.map(withAgentDefaults);
+  next.cons = next.cons.map(c => {
+    const con = withAgentDefaults(c);
+    const amount = Number(con.amount || 0);
+    if (amount <= 0) con.status = "closed";
+    else if (!con.status) con.status = "open";
+    con.payments = (con.payments || []).map(withAgentDefaults);
+    return con;
+  });
+  Object.keys(next.stock || {}).forEach(date => {
+    if (isFlatStockMap(next.stock)) return;
+    const dayStock = next.stock[date];
+    if (!dayStock || typeof dayStock !== "object") {
+      next.stock[date] = {};
+      return;
+    }
+    if (dayStock.items || dayStock.createdAt || dayStock.agent_id) {
+      next.stock[date] = { [dayStock.agent_id || "agent_1"]: withAgentDefaults(dayStock) };
+    } else {
+      Object.keys(dayStock).forEach(agentId => {
+        dayStock[agentId] = withAgentDefaults(dayStock[agentId]);
+      });
+    }
+  });
+  next.shiftHistory = next.shiftHistory.map(sh => ({
+    ...withAgentDefaults(sh),
+    visits: (sh.visits || []).map(withAgentDefaults),
+    adjustments: (sh.adjustments || []).map(withAgentDefaults)
+  }));
+  next.adjustments = next.adjustments.map(withAgentDefaults);
+  return next;
+}
+
+function getAgents() {
+  return (DB.agents || []).map(normalizeAgentRow);
+}
+
+function getActiveAgents() {
+  return getAgents().filter(a => a && a.is_active !== false);
+}
+
+function findAgentById(agentId) {
+  return getAgents().find(a => a && agentIdOf(a) === agentId) || null;
+}
+
+function newAgentId() {
+  return "agent_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function isActiveStore(store) {
+  return store && store.is_active !== false && !store.deletedAt;
+}
+
+function getActiveStores() {
+  return DB.stores.filter(isActiveStore);
+}
+
+function isOpenDebt(con) {
+  return con &&
+    con.status === "open" &&
+    Number(con.amount || 0) > 0 &&
+    !con.deletedAt;
+}
+
+function getOpenDebts() {
+  return DB.cons.filter(isOpenDebt);
+}
+
+let currentDate = new Date().toISOString().slice(0,10);
+let currentRepFilter = "all";
+let selectedAgentId = "all";
+let manageDirty = false;
+
+// ============================================
+// HELPERS
+// ============================================
+const $ = id => document.getElementById(id);
+const money = n => Math.round(Number(n)||0).toLocaleString("ru-RU") + " ₸";
+const esc = s => String(s??'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+const storeById = id => (DB.stores.find(s=>s.id===id)||{}).name || "Магазин удалён";
+const getRepName = obj => obj.salesRep||obj.repName||obj.agent_name||findAgentById(recordAgentId(obj))?.name||recordAgentId(obj)||"Торговый";
+
+function isSelectedAgent(record) {
+  const aid = selectedAgentId || "all";
+  return aid === "all" || recordAgentId(record) === aid;
+}
+
+function isSelectedAgentPayment(payment) {
+  const aid = selectedAgentId || "all";
+  return aid === "all" || recordAgentId(payment) === aid;
+}
+
+function filterByRep(items) {
+  const aid = selectedAgentId || "all";
+  if (aid === "all") return items;
+  return items.filter(item => recordAgentId(item) === aid);
+}
+
+function setStatus(type) {
+  const dot = $("syncDot");
+  dot.className = "sync-dot " + type;
+}
+
+function isValidProductId(id) {
+  return /^[a-z0-9_]+$/.test(String(id || ""));
+}
+
+function productIdAlert() {
+  alert("ID товара можно писать только латиницей, цифрами и нижним подчёркиванием. Без пробелов.");
+}
+
+async function saveAdminData() {
+  const now = new Date().toISOString();
+  DB._lastUpdated = now;
+  const cloudDB = {
+    cons: DB.cons || [],
+    shiftHistory: DB.shiftHistory || [],
+    adjustments: DB.adjustments || [],
+    _lastUpdated: now
+  };
+  setStatus("loading");
+  try {
+    const r = await fetch(SUPA_URL + "?on_conflict=key", {
+      method: "POST",
+      headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ key: "main", data: cloudDB, updated_at: now })
+    });
+    if (!r.ok) {
+      const errText = await r.text().catch(() => r.status);
+      throw new Error("Supabase error: " + errText);
+    }
+    setStatus("ok");
+  } catch (e) {
+    setStatus("err");
+    throw e; // пробрасываем выше чтоб catch в createAgent поймал
+  }
+}
+
+// ============================================
+// DATA LOAD
+// ============================================
+async function loadAgentsFromCloud() {
+  const r = await fetch(AGENTS_URL + "?is_active=eq.true&select=*&order=created_at.asc", { headers: SUPA_HEAD });
+  if (!r.ok) throw new Error(await r.text());
+  const agents = await r.json();
+  DB.agents = (Array.isArray(agents) ? agents : [])
+    .map(normalizeAgentRow)
+    .filter(a => a && a.id);
+}
+
+async function loadStoresFromCloud() {
+  const r = await fetch(
+    STORES_URL + "?is_active=eq.true&deleted_at=is.null&select=*&order=created_at.asc",
+    { headers: SUPA_HEAD }
+  );
+  if (!r.ok) throw new Error(await r.text());
+  const stores = await r.json();
+  DB.stores = (Array.isArray(stores) ? stores : []).map(normalizeStoreRow);
+}
+
+async function loadVisitsFromCloud() {
+  try {
+    const r = await fetch(
+      VISITS_URL + "?select=*&order=date.desc",
+      { headers: SUPA_HEAD }
+    );
+    if (!r.ok) throw new Error(await r.text());
+    const rows = await r.json();
+    if (!Array.isArray(rows)) {
+      DB.visits = [];
+      return;
+    }
+    DB.visits = rows.map(v => ({
+      id: v.id,
+      storeId: v.store_id,
+      date: v.date,
+      status: v.status,
+      payment: v.payment,
+      total: Number(v.total || 0),
+      items: v.items || {},
+      comment: v.comment || "",
+      debtPayment: Number(v.debt_payment || 0),
+      agent_id: v.agent_id
+    }));
+  } catch (e) {
+    console.error("loadVisitsFromCloud error:", e);
+  }
+}
+
+async function loadStockFromCloud() {
+  try {
+    const r = await fetch(
+      STOCK_URL + "?select=agent_id,product_id,quantity",
+      { headers: SUPA_HEAD }
+    );
+    if (!r.ok) throw new Error(await r.text());
+    const rows = await r.json();
+    if (!Array.isArray(rows)) {
+      DB.stock = {};
+      return;
+    }
+    const stockByAgent = {};
+    rows.forEach(row => {
+      const agentId = row.agent_id;
+      const productId = row.product_id;
+      const qty = Number(row.quantity || 0);
+      if (!agentId || !productId) return;
+      if (!stockByAgent[agentId]) stockByAgent[agentId] = {};
+      stockByAgent[agentId][productId] = qty;
+    });
+    DB.stock = stockByAgent;
+  } catch (e) {
+    console.error("loadStockFromCloud error:", e);
+  }
+}
+
+async function loadAllSupabaseData() {
+  await loadProductsFromCloud();
+  await loadAgentsFromCloud();
+  await loadStoresFromCloud();
+  await loadVisitsFromCloud();
+  await loadStockFromCloud();
+}
+
+async function ensureStockRowsForAgent(agentId) {
+  if (!agentId) return;
+  await loadProductsFromCloud();
+  await loadStockFromCloud();
+  if (!PRODUCTS_FROM_CLOUD) {
+    console.error("ensureStockRowsForAgent: products не загружены из Supabase, stock не создаём", agentId);
+    return;
+  }
+  const activeProducts = PRODUCT_ADMIN_ROWS.filter(p => p.is_active !== false && p.id);
+  const hasAllProducts = activeProducts.every(p => DB.stock?.[agentId]?.[p.id] !== undefined);
+  if (hasAllProducts) return;
+  const rows = activeProducts
+    .filter(p => {
+      if (p.id !== p.id.trim() || !/^[a-z0-9_]+$/.test(p.id)) {
+        console.error("ensureStockRowsForAgent: неизвестный product_id, stock пропущен", { agent_id: agentId, product_id: p.id });
+        return false;
+      }
+      return DB.stock?.[agentId]?.[p.id] === undefined;
+    })
+    .map(p => ({
+      agent_id: agentId,
+      product_id: p.id,
+      quantity: 0
+    }));
+  if (!rows.length) return;
+  try {
+    const r = await fetch(STOCK_URL + "?on_conflict=agent_id,product_id", {
+      method: "POST",
+      headers: {
+        ...SUPA_HEAD,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(rows)
+    });
+    if (!r.ok) {
+      const text = await r.text();
+      rows.forEach(row => console.error("ensureStockRowsForAgent upsert error:", row.agent_id, row.product_id, text));
+      throw new Error(text);
+    }
+    await loadStockFromCloud();
+  } catch (e) {
+    rows.forEach(row => console.error("ensureStockRowsForAgent error:", row.agent_id, row.product_id, e));
+    throw e;
+  }
+}
+
+async function ensureStockForAllAgents() {
+  const agents = getActiveAgents();
+  for (const agent of agents) {
+    const agentId = agentIdOf(agent);
+    if (!agentId) continue;
+    try {
+      await ensureStockRowsForAgent(agentId);
+    } catch (e) {
+      console.error("ensureStockForAllAgents error:", agentId, e);
+    }
+  }
+}
+
+async function loadData() {
+  setStatus("loading");
+  try {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), 8000);
+      const r = await fetch(SUPA_URL+"?key=eq.main&select=data", { headers: SUPA_HEAD, signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) throw new Error(await r.text());
+      const rows = await r.json();
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (!row) {
+        const emptyState = { cons: [], shiftHistory: [], adjustments: [], _lastUpdated: new Date().toISOString() };
+        const createState = await fetch(SUPA_URL + "?on_conflict=key", {
+          method: "POST",
+          headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify({ key: "main", data: emptyState, updated_at: emptyState._lastUpdated })
+        });
+        if (!createState.ok) throw new Error(await createState.text());
+      }
+      const cloudData = row?.data && typeof row.data === "object" ? row.data : {};
+      const appData = migrateDB(normalizeDB(cloudData));
+      DB.cons = appData.cons || [];
+      DB.shiftHistory = appData.shiftHistory || [];
+      DB.adjustments = appData.adjustments || [];
+    } catch (e) {
+      console.error("app_state load error:", e);
+      DB.cons = DB.cons || [];
+      DB.shiftHistory = DB.shiftHistory || [];
+      DB.adjustments = DB.adjustments || [];
+    }
+    await loadProductsFromCloud();
+    const results = await Promise.allSettled([
+      loadAgentsFromCloud(),
+      loadStoresFromCloud(),
+      loadVisitsFromCloud(),
+      loadStockFromCloud()
+    ]);
+    try {
+      const debtsCount = await loadDebtsFromCloud();
+      if (debtsCount > 0) {
+        console.log("DB.cons loaded from debts:", debtsCount);
+      } else {
+        console.warn("debts empty, using app_state cons fallback");
+      }
+    } catch (e) {
+      console.error("loadDebtsFromCloud error, using app_state fallback:", e);
+    }
+    const failed = results.filter(r => r.status === "rejected");
+    if (failed.length) {
+      console.warn("Некоторые данные не загрузились:", failed);
+    }
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.error("Supabase load failed:", index, result.reason);
+      }
+    });
+    await ensureStockForAllAgents();
+    if (!Object.keys(DB.stock || {}).length) {
+      console.warn("STOCK пустой — возможно ошибка загрузки");
+    }
+    const activeIds = getActiveAgents().map(a => agentIdOf(a));
+    if (selectedAgentId !== "all" && !activeIds.includes(selectedAgentId)) {
+      selectedAgentId = "all";
+    }
+    setStatus("ok");
+  } catch(e) {
+    console.error(e);
+    setStatus("err");
+  }
+  console.log("AGENTS:", DB.agents);
+  console.log("VISITS:", DB.visits.length);
+  console.log("STOCK:", DB.stock);
+  renderAll();
+}
+
+function getAllVisits() {
+  return [...DB.visits];
+}
+
+function getVisitsByDate(date) {
+  return filterByRep(DB.visits, true).filter(v=>v.date===date);
+}
+
+function getStockForDate(date, agentId = selectedAgentId) {
+  const sum = {};
+  PRODUCTS.forEach(p => { sum[p.id] = 0; });
+  if (agentId === "all") {
+    Object.values(DB.stock || {}).forEach(agentStock => {
+      PRODUCTS.forEach(p => {
+        sum[p.id] += Number(agentStock?.[p.id] || 0);
+      });
+    });
+  } else {
+    const agentStock = DB.stock?.[agentId] || {};
+    PRODUCTS.forEach(p => {
+      sum[p.id] = Number(agentStock?.[p.id] || 0);
+    });
+  }
+  return sum;
+}
+
+function getActualStockSummary(date, agentId = selectedAgentId) {
+  const stockStart = getStockForDate(date, agentId);
+  const visits = DB.visits.filter(v => {
+    if ((v.date || "") !== date) return false;
+    if (v.status !== "Посещено") return false;
+    if (agentId !== "all" && recordAgentId(v) !== agentId) return false;
+    return true;
+  });
+  const byProduct = {};
+  let soldQty = 0, soldSum = 0, exchQty = 0, exchSum = 0, bonusQty = 0;
+  let leftoverQty = 0, leftoverSum = 0, outQty = 0;
+  PRODUCTS.forEach(p => {
+    byProduct[p.id] = { start: Number(stockStart[p.id]) || 0, ship: 0, exchange: 0, bonus: 0, out: 0, current: 0 };
+  });
+  visits.forEach(v => {
+    PRODUCTS.forEach(p => {
+      const it = (v.items || {})[p.id] || {};
+      const sh = Number(it.ship) || 0;
+      const ex = Number(it.exchange) || 0;
+      const bo = Number(it.bonus) || 0;
+      byProduct[p.id].ship += sh;
+      byProduct[p.id].exchange += ex;
+      byProduct[p.id].bonus += bo;
+      soldQty += sh;
+      soldSum += sh * p.price;
+      exchQty += ex;
+      exchSum += ex * p.price;
+      bonusQty += bo;
+    });
+  });
+  PRODUCTS.forEach(p => {
+    const row = byProduct[p.id];
+    row.out = row.ship + row.exchange + row.bonus;
+    row.current = row.start - row.out;
+    outQty += row.out;
+    leftoverQty += row.current;
+    leftoverSum += row.current * p.price;
+  });
+  return { soldQty, soldSum, exchQty, exchSum, bonusQty, leftoverQty, leftoverSum, outQty, byProduct };
+}
+
+function getShiftSummary(date) {
+  const summary = getActualStockSummary(date);
+  if (summary.leftoverQty || summary.outQty || summary.soldQty || summary.exchQty || summary.bonusQty) return summary;
+  const sh = DB.shiftHistory.filter(isSelectedAgent).find(s=>s.date===date);
+  return sh?.summary || summary;
+}
+
+function isoToDate(s) { return new Date((s || "").slice(0,10) + "T12:00:00"); }
+function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+
+function getRangeStart(range) {
+  if (range === "today") return currentDate;
+  if (range === "week") { const d = isoToDate(currentDate); d.setDate(d.getDate() - 6); return d.toISOString().slice(0,10); }
+  if (range === "month") { const d = isoToDate(currentDate); d.setDate(d.getDate() - 29); return d.toISOString().slice(0,10); }
+  return "0000-01-01";
+}
+
+function getVisitsInRange(range) {
+  const from = getRangeStart(range);
+  let visits = getAllVisits().filter(v => (v.date || "") >= from && (v.date || "") <= currentDate);
+  visits = filterByRep(visits, true);
+  return visits;
+}
+
+function getConsInRange(range) {
+  const from = getRangeStart(range);
+  let cons = (DB.cons || []).filter(c => !c.deletedAt && isSelectedAgent(c));
+  // cons itself doesn't have a guaranteed "date" for payments, so we keep all and filter payments by date in calc.
+  return { cons, from };
+}
+
+function pct(n, d) { return d > 0 ? Math.round((n / d) * 100) : 0; }
+
+function getOpenDebtByStore() {
+  const map = {};
+  getOpenDebts().filter(isSelectedAgent).forEach(c => {
+    const sid = c.storeId;
+    map[sid] = (map[sid] || 0) + (Number(c.amount) || 0);
+  });
+  return map;
+}
+
+function getDebtByRep() {
+  const map = {};
+  getOpenDebts().filter(isSelectedAgent).forEach(c => {
+    const rep = getRepName(c);
+    map[rep] = (map[rep] || 0) + (Number(c.amount) || 0);
+  });
+  return map;
+}
+
+function calcLossFromVisit(v) {
+  let loss = 0;
+  PRODUCTS.forEach(p => {
+    const it = (v.items || {})[p.id] || {};
+    const ex = Number(it.exchange) || 0;
+    loss += ex * p.price;
+  });
+  return loss;
+}
+
+function calcShipExchNetRevenueLoss(v) {
+  let ship = 0, exch = 0, net = 0, revenue = 0, loss = 0;
+  PRODUCTS.forEach(p => {
+    const it = (v.items || {})[p.id] || {};
+    const sh = Number(it.ship) || 0;
+    const ex = Number(it.exchange) || 0;
+    ship += sh;
+    exch += ex;
+    net += (sh - ex);
+    revenue += sh * p.price;
+    loss += ex * p.price;
+  });
+  return { ship, exch, net, revenue, loss };
+}
+
+// ============================================
+// RENDER
+// ============================================
+function safeRender(fn, name) {
+  try {
+    fn();
+  } catch (e) {
+    console.error('Render error:', name, e);
+  }
+}
+
+function renderAll() {
+  updateDateLabel();
+  safeRender(renderAgentsManagement, 'agents');
+  safeRender(renderProductsManagement, 'productsManage');
+  safeRender(renderManageReportsPanel, 'manageReports');
+  safeRender(renderOverview,         'overview');
+  safeRender(renderVisits,           'visits');
+  safeRender(renderMoney,            'money');
+  safeRender(renderDebts,            'debts');
+  safeRender(renderProducts,         'products');
+  safeRender(renderReps,             'reps');
+  safeRender(renderStoresAnalytics,  'stores');
+  safeRender(renderLosses,           'losses');
+  safeRender(renderTrend,            'trend');
+}
+
+function updateDateLabel() {
+  const today = new Date().toISOString().slice(0,10);
+  const d = new Date(currentDate + "T12:00:00");
+  const opts = {day:"numeric",month:"short"};
+  let label = currentDate === today ? "Сегодня" : d.toLocaleDateString("ru-RU",opts);
+  $("dateLabelBtn").textContent = label;
+  $("datePicker").value = currentDate;
+}
+
+function clearAgentForm() {
+  if (!$('agentId')) return;
+  $('agentId').value = '';
+  $('agentName').value = '';
+  $('agentPhone').value = '';
+  $('agentLogin').value = '';
+  $('agentPin').value = '';
+  $('agentRole').value = 'agent';
+  $('agentSaveBtn').textContent = 'Добавить';
+  manageDirty = false;
+}
+
+async function createAgent() {
+  if (window._creatingAgent) return;
+  window._creatingAgent = true;
+  const agentSaveBtn = $('agentSaveBtn');
+  if (agentSaveBtn) agentSaveBtn.disabled = true;
+  try {
+    const loginEl = $('agentLogin');
+    const pinEl   = $('agentPin');
+    if (!loginEl || !pinEl) { alert('Ошибка: поля формы не найдены'); return; }
+    const name     = ($('agentName')?.value  || '').trim();
+    const phone    = ($('agentPhone')?.value || '').trim();
+    const login    = loginEl.value.trim();
+    const password = pinEl.value.trim();
+    const role     = $('agentRole')?.value || 'agent';
+    if (!login || !password) { alert('Заполни логин и пароль'); return; }
+    const exists = DB.agents.some(a => String(a.login || "").trim().toLowerCase() === login.toLowerCase());
+    if (exists) {
+      alert("Такой логин уже есть");
+      return;
+    }
+    if (password.length < 4) {
+      alert("Пароль минимум 4 символа");
+      return;
+    }
+    setStatus("loading");
+    const rCheck = await fetch(
+      AGENTS_URL + "?login=eq." + encodeURIComponent(login),
+      { headers: SUPA_HEAD }
+    );
+    if (!rCheck.ok) throw new Error(await rCheck.text());
+    const existsCloud = await rCheck.json();
+    if (Array.isArray(existsCloud) && existsCloud.length) {
+      alert("Такой логин уже есть в базе");
+      return;
+    }
+    const now = new Date().toISOString();
+    const newAgent = {
+      login,
+      password,
+      name: name || login,
+      phone,
+      role,
+      is_active: true,
+      created_at: now,
+      updated_at: now
+    };
+    const r = await fetch(AGENTS_URL, {
+      method: "POST",
+      headers: {
+        ...SUPA_HEAD,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+      },
+      body: JSON.stringify(newAgent)
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      console.error("createAgent error:", txt);
+      throw new Error(txt);
+    }
+    const created = await r.json();
+    if (!Array.isArray(created) || !created[0]) {
+      throw new Error("Supabase не вернул созданного агента");
+    }
+    const agent = normalizeAgentRow(created[0]);
+    try {
+      await ensureStockRowsForAgent(agent.id);
+      await loadStockFromCloud();
+      renderAll();
+    } catch (e) {
+      const rollback = await fetch(AGENTS_URL + "?id=eq." + encodeURIComponent(agent.id), {
+        method: "DELETE",
+        headers: SUPA_HEAD
+      });
+      if (!rollback.ok) {
+        const text = await rollback.text();
+        console.error("createAgent rollback error:", text);
+      }
+      throw new Error("Ошибка создания stock, агент удалён");
+    }
+    clearAgentForm();
+    $('agentSaveBtn').textContent = 'Добавить';
+    await loadData();
+    setStatus("ok");
+    alert('Торговый создан');
+  } catch (e) {
+    setStatus("err");
+    console.error('createAgent error:', e);
+    alert(e.message || 'Ошибка создания торгового');
+  } finally {
+    window._creatingAgent = false;
+    if (agentSaveBtn) agentSaveBtn.disabled = false;
+  }
+}
+
+async function updateAgent(agentId) {
+  try {
+    setStatus("loading");
+    if (agentId) {
+      // режим заполнения формы — загружаем из Supabase по id
+      const r = await fetch(AGENTS_URL + "?id=eq." + encodeURIComponent(agentId) + "&select=*", { headers: SUPA_HEAD });
+      if (!r.ok) throw new Error(await r.text());
+      const arr = await r.json();
+      const agent = arr[0];
+      if (!agent) return;
+      $('agentId').value = agent.id;
+      $('agentName').value = agent.name || '';
+      $('agentPhone').value = agent.phone || '';
+      $('agentLogin').value = agent.login || '';
+      $('agentPin').value = agent.password || '';
+      $('agentRole').value = agent.role || 'agent';
+      $('agentSaveBtn').textContent = 'Сохранить';
+      manageDirty = false;
+      setStatus("ok");
+      return;
+    }
+    // режим сохранения
+    const id = $('agentId').value;
+    if (!id) return;
+    const name = $('agentName').value.trim();
+    const phone = $('agentPhone').value.trim();
+    const login = $('agentLogin').value.trim();
+    const password = $('agentPin').value.trim();
+    const role = $('agentRole').value || 'agent';
+    if (!name) { setStatus("ok"); alert('Введите имя торгового'); return; }
+    if (!login) { setStatus("ok"); alert('Введите логин'); return; }
+    const body = {
+      name,
+      phone,
+      login,
+      role,
+      updated_at: new Date().toISOString()
+    };
+    if (password) {
+      body.password = password;
+    }
+    const r = await fetch(AGENTS_URL + "?id=eq." + encodeURIComponent(id), {
+      method: 'PATCH',
+      headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: 'return=minimal' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      console.error('updateAgent error:', txt);
+      throw new Error(txt);
+    }
+    clearAgentForm();
+    $('agentSaveBtn').textContent = 'Добавить';
+    await loadData();
+    setStatus("ok");
+    alert('Торговый сохранён');
+  } catch(e) {
+    setStatus("err");
+    console.error('updateAgent ошибка:', e);
+    alert('Ошибка сохранения торгового');
+  }
+}
+
+async function deactivateAgent(agentId) {
+  try {
+    setStatus("loading");
+    if (!confirm('Отключить торгового?')) { setStatus("ok"); return; }
+    const r = await fetch(AGENTS_URL + "?id=eq." + encodeURIComponent(agentId), {
+      method: 'PATCH',
+      headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: 'return=minimal' },
+      body: JSON.stringify({ is_active: false, updated_at: new Date().toISOString() })
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      console.error('deactivateAgent error:', txt);
+      throw new Error(txt);
+    }
+    await loadData();
+    setStatus("ok");
+    alert('Торговый отключён');
+  } catch(e) {
+    setStatus("err");
+    console.error('deactivateAgent ошибка:', e);
+    alert('Ошибка отключения торгового');
+  }
+}
+
+async function renderAgentsManagement() {
+  const list = $('agentsList');
+  if (!list) return;
+  if (!Array.isArray(DB.agents)) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>Ошибка загрузки торговых</div>';
+    return;
+  }
+  try {
+    if (!DB.agents.length) {
+      list.innerHTML = '<div class="empty-state"><div class="icon">⏳</div>Загрузка...</div>';
+      await loadAgentsFromCloud();
+    }
+    const agents = getAgents();
+    list.innerHTML = agents.length ? agents.map(a => {
+      if (!a) return '';
+      return `
+      <div class="card-item">
+        <div class="card-head">
+          <span class="card-store">${esc(a.name || '')}</span>
+          <span class="pill ${a.is_active === false ? 'red' : 'green'}">${a.is_active === false ? 'выключен' : 'активен'}</span>
+        </div>
+        <div class="card-body">
+          <div class="card-kv"><div class="card-k">Логин</div><div class="card-v">${esc(a.login || '')}</div></div>
+          <div class="card-kv"><div class="card-k">Телефон</div><div class="card-v">${esc(a.phone || '')}</div></div>
+          <div class="card-kv"><div class="card-k">Роль</div><div class="card-v">${esc(a.role || 'agent')}</div></div>
+          <div class="card-kv"><div class="card-k">ID</div><div class="card-v">${esc(a.id || '')}</div></div>
+        </div>
+        <div class="filter-row" style="padding:10px 0 0">
+          <button class="analytics-tab" type="button" data-edit-agent="${esc(a.id)}">Изменить</button>
+          <button class="analytics-tab" type="button" data-off-agent="${esc(a.id)}" ${a.is_active === false ? 'disabled' : ''}>Отключить</button>
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty-state"><div class="icon">👤</div>Торговых пока нет</div>';
+  } catch(e) {
+    console.error('renderAgentsManagement error:', e);
+    list.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>Не удалось загрузить торговых</div>';
+  }
+  list.querySelectorAll('[data-edit-agent]').forEach(btn => { btn.onclick = () => updateAgent(btn.dataset.editAgent); });
+  list.querySelectorAll('[data-off-agent]').forEach(btn => { btn.onclick = () => deactivateAgent(btn.dataset.offAgent); });
+}
+function renderOverview() {
+  const date = currentDate;
+  let visits = getVisitsByDate(date);
+  visits = filterByRep(visits, true);
+  const visited = visits.filter(v=>v.status==="Посещено");
+
+  let cash=0, kaspi=0, cons=0, debtPay=0, exchangeQty=0, bonusQty=0;
+  visited.forEach(v=>{
+    if (v.payment==="cash") cash+=v.total||0;
+    else if (v.payment==="kaspi") kaspi+=v.total||0;
+    else if (v.payment==="cons") cons+=v.total||0;
+    PRODUCTS.forEach(p=>{
+      const it=(v.items||{})[p.id]||{};
+      exchangeQty += Number(it.exchange)||0;
+      bonusQty += Number(it.bonus)||0;
+    });
+  });
+  
+  let allCons = DB.cons.filter(c => !c.deletedAt && isSelectedAgent(c));
+  allCons.forEach(c=>(c.payments||[]).filter(isSelectedAgentPayment).forEach(p=>{ if(p.date===date) debtPay+=Number(p.amount)||0; }));
+  
+  const total = cash+kaspi+debtPay;
+  const summary = getShiftSummary(date);
+  $("heroTotal").textContent = money(total);
+  $("moneyOverviewGrid").innerHTML = `
+    <div class="stat-block metric-card clickable" data-breakdown="cash"><div class="stat-lbl">💵 Наличные</div><div class="stat-val blue">${money(cash)}</div></div>
+    <div class="stat-block metric-card clickable" data-breakdown="kaspi"><div class="stat-lbl">💳 Kaspi</div><div class="stat-val blue">${money(kaspi)}</div></div>
+    <div class="stat-block metric-card clickable" data-breakdown="debtPay"><div class="stat-lbl">💚 Погашение долгов</div><div class="stat-val green">${money(debtPay)}</div></div>
+    <div class="stat-block metric-card clickable" data-breakdown="cons"><div class="stat-lbl">📝 Консигнация</div><div class="stat-val orange">${money(cons)}</div></div>
+    <div class="stat-block metric-card"><div class="stat-lbl">✅ Посещено</div><div class="stat-val green">${visited.length}</div></div>
+    <div class="stat-block metric-card"><div class="stat-lbl">📦 Остаток товара</div><div class="stat-val">${summary?.leftoverQty||0} шт</div><div class="stat-lbl">${summary ? `${summary.leftoverQty + summary.outQty} → -${summary.outQty}` : ""}</div></div>
+    <div class="stat-block metric-card"><div class="stat-lbl">🔄 Обмен</div><div class="stat-val orange">${exchangeQty} шт</div></div>
+    <div class="stat-block metric-card"><div class="stat-lbl">🎁 Бонус</div><div class="stat-val purple">${bonusQty} шт</div></div>
+  `;
+  document.querySelectorAll("#moneyOverviewGrid [data-breakdown]").forEach(el => {
+    el.onclick = () => openMoneyBreakdown(el.dataset.breakdown);
+  });
+
+  const probs = [];
+  if (visited.some(v=>!v.payment)) probs.push("🔴 Есть посещённые визиты без типа оплаты");
+  if (visited.some(v=>v.payment!=="cons" && (Number(v.total)||0)===0)) probs.push("🔴 Есть визиты без суммы");
+  const storeS = {};
+  visited.forEach(v=>{
+    if(!storeS[v.storeId]) storeS[v.storeId]={ship:0,exch:0};
+    PRODUCTS.forEach(p=>{ const it=(v.items||{})[p.id]||{}; storeS[v.storeId].ship+=Number(it.ship)||0; storeS[v.storeId].exch+=Number(it.exchange)||0; });
+  });
+  const hE = Object.values(storeS).filter(s=>s.ship>0&&(s.exch/s.ship)*100>=30);
+  if(hE.length) probs.push(`🟠 Высокий обмен ≥30% у ${hE.length} точек`);
+  const d3 = new Date(); d3.setDate(d3.getDate()-3); d3.setHours(0,0,0,0);
+  let old = getOpenDebts().filter(c=>isSelectedAgent(c)&&new Date(c.date)<d3);
+  if(old.length) probs.push(`🔴 Старые долги больше 3 дней: ${old.length}`);
+  if (!summary && visited.length) probs.push("🟡 Есть визиты, но нет данных смены по остаткам");
+  $("problemsOverview").innerHTML = probs.length ? probs.map(p=>`<div class="alert warn">${p}</div>`).join("") : '<div class="alert ok">✅ Критичных проблем нет</div>';
+}
+
+function visitProductTotals(visit) {
+  let ship = 0, exchange = 0, bonus = 0;
+  PRODUCTS.forEach(p => {
+    const it = (visit.items || {})[p.id] || {};
+    ship += Number(it.ship) || 0;
+    exchange += Number(it.exchange) || 0;
+    bonus += Number(it.bonus) || 0;
+  });
+  return { ship, exchange, bonus };
+}
+
+function openMoneyBreakdown(type) {
+  const items = getMoneyBreakdownItems(type);
+  renderMoneyBreakdownSheet(type, items);
+}
+
+function getMoneyBreakdownItems(type) {
+  const date = currentDate;
+  if (type === "debtPay") {
+    const out = [];
+    (DB.cons || []).filter(c => !c.deletedAt && isSelectedAgent(c)).forEach(c => {
+      (c.payments || []).filter(isSelectedAgentPayment).forEach(p => {
+        if (p.date !== date) return;
+        out.push({ type, store: storeById(c.storeId), rep: getRepName(p) || getRepName(c), amount: Number(p.amount) || 0, date: p.date || date, time: p._updatedAt || p.createdAt || "", remaining: Number(c.amount) || 0 });
+      });
+    });
+    return out;
+  }
+  return getVisitsByDate(date).filter(v => v.status === "Посещено" && v.payment === type).filter(isSelectedAgent).map(v => {
+    const totals = visitProductTotals(v);
+    const linkedCons = type === "cons" ? (DB.cons || []).find(c => !c.deletedAt && c.visitId === v.id) : null;
+    return { type, store: storeById(v.storeId), rep: getRepName(v), amount: Number(v.total) || 0, date: v.date || date, time: v._updatedAt || v.updatedAt || v.createdAt || "", ship: totals.ship, exchange: totals.exchange, bonus: totals.bonus, consStatus: linkedCons ? (linkedCons.status === "open" ? `долг открыт, остаток ${money(linkedCons.amount)}` : "долг закрыт") : "" };
+  });
+}
+
+function renderMoneyBreakdownSheet(type, items) {
+  const titleMap = { cash: "Наличные", kaspi: "Kaspi", cons: "Консигнация", debtPay: "Погашение долгов" };
+  $("sheetTitle").textContent = titleMap[type] || "Детали";
+  if (!items.length) {
+    $("sheetBody").innerHTML = `<div class="empty-state"><div class="icon">📭</div>Нет данных за выбранную дату</div>`;
+    $("visitSheet").classList.add("active");
+    return;
+  }
+  $("sheetBody").innerHTML = items.map(item => {
+    const time = item.time ? new Date(item.time).toLocaleString("ru-RU", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" }) : item.date;
+    if (type === "debtPay") return `<div class="card-item"><div class="card-head"><span class="card-store">${esc(item.store)}</span><span class="card-sum">${money(item.amount)}</span></div><div class="card-body"><div class="card-kv"><div class="card-k">Торговый</div><div class="card-v">${esc(item.rep)}</div></div><div class="card-kv"><div class="card-k">Дата/время</div><div class="card-v">${esc(time)}</div></div><div class="card-kv"><div class="card-k">Остаток долга</div><div class="card-v red">${money(item.remaining)}</div></div></div></div>`;
+    return `<div class="card-item"><div class="card-head"><span class="card-store">${esc(item.store)}</span><span class="card-sum">${money(item.amount)}</span></div><div class="card-body"><div class="card-kv"><div class="card-k">Торговый</div><div class="card-v">${esc(item.rep)}</div></div><div class="card-kv"><div class="card-k">Дата/время</div><div class="card-v">${esc(time)}</div></div><div class="card-kv"><div class="card-k">Отгрузка</div><div class="card-v blue">${item.ship} шт</div></div><div class="card-kv"><div class="card-k">Обмен</div><div class="card-v orange">${item.exchange} шт</div></div><div class="card-kv"><div class="card-k">Бонус</div><div class="card-v purple">${item.bonus} шт</div></div>${item.consStatus ? `<div class="card-kv"><div class="card-k">Долг</div><div class="card-v orange">${esc(item.consStatus)}</div></div>` : ""}</div></div>`;
+  }).join("");
+  $("visitSheet").classList.add("active");
+}
+function renderVisits() {
+  const date = currentDate;
+  let visits = getVisitsByDate(date);
+  visits = filterByRep(visits, true);
+  const pf = $("paymentFilter").value;
+  const sf = $("statusFilter").value;
+  const sort = $("sortBy").value;
+  if (pf!=="all") visits=visits.filter(v=>v.payment===pf);
+  if (sf!=="all") visits=visits.filter(v=>v.status===sf);
+  if (sort==="time") visits.sort((a,b)=>(a._updatedAt||a.date)<(b._updatedAt||b.date)?-1:1);
+  if (sort==="store") visits.sort((a,b)=>storeById(a.storeId).localeCompare(storeById(b.storeId)));
+  if (sort==="sum") visits.sort((a,b)=>(b.total||0)-(a.total||0));
+  if (sort==="status") visits.sort((a,b)=>(a.status||"").localeCompare(b.status||""));
+
+  if (!visits.length) {
+    $("visitsCardList").innerHTML = `<div class="empty-state"><div class="icon">📋</div>Визитов за этот день нет</div>`;
+    return;
+  }
+  $("visitsCardList").innerHTML = visits.map(v=>{
+    let ship=0,exch=0,bonus=0;
+    PRODUCTS.forEach(p=>{ const it=(v.items||{})[p.id]||{}; ship+=Number(it.ship)||0; exch+=Number(it.exchange)||0; bonus+=Number(it.bonus)||0; });
+    const timeStr = v._updatedAt ? new Date(v._updatedAt).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}) : "—";
+    const payIcon = v.payment==="cash"?"💵":v.payment==="kaspi"?"💳":"📝";
+    const statusCls = v.status==="Посещено"?"green":"orange";
+    return `<div class="card-item clickable" data-visit-id="${v.id}">
+      <div class="card-head">
+        <span class="card-store">${esc(storeById(v.storeId))}</span>
+        <span class="card-sum">${money(v.total)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-kv"><div class="card-k">Статус</div><div class="card-v"><span class="pill ${statusCls}">${v.status}</span></div></div>
+        <div class="card-kv"><div class="card-k">Оплата</div><div class="card-v">${payIcon} ${v.payment==="cash"?"Нал":v.payment==="kaspi"?"Kaspi":"Конс."}</div></div>
+        <div class="card-kv"><div class="card-k">Время</div><div class="card-v">${timeStr}</div></div>
+        <div class="card-kv"><div class="card-k">Отгрузка</div><div class="card-v">${ship} шт</div></div><div class="card-kv"><div class="card-k">Обмен</div><div class="card-v orange">${exch} шт</div></div><div class="card-kv"><div class="card-k">Бонус</div><div class="card-v purple">${bonus} шт</div></div>
+        <div class="card-kv"><div class="card-k">Торговый</div><div class="card-v">${esc(getRepName(v))}</div></div>
+      </div>
+    </div>`;
+  }).join("");
+  document.querySelectorAll("#visitsCardList .card-item").forEach(el=>{
+    el.onclick = ()=>{
+      const id = el.dataset.visitId;
+      const visit = getAllVisits().find(v=>v.id===id);
+      if (visit) showVisitSheet(visit);
+    };
+  });
+}
+
+function renderMoney() {
+  const date = currentDate;
+  let mv = getVisitsByDate(date).filter(v=>v.status==="Посещено");
+  mv = filterByRep(mv, true);
+  let cash=0,kaspi=0,cons=0,totalShip=0,debtPay=0;
+  mv.forEach(v=>{
+    if(v.payment==="cash") cash+=v.total||0;
+    else if(v.payment==="kaspi") kaspi+=v.total||0;
+    else if(v.payment==="cons") cons+=v.total||0;
+    PRODUCTS.forEach(p=>{ const it=(v.items||{})[p.id]||{}; totalShip+=(Number(it.ship)||0)*p.price; });
+  });
+  const payments=[];
+  let allCons = DB.cons.filter(c => !c.deletedAt && isSelectedAgent(c));
+  allCons.forEach(c=>(c.payments||[]).filter(isSelectedAgentPayment).forEach(p=>{ if(p.date===date){ debtPay+=Number(p.amount)||0; payments.push({rep:getRepName(c),storeId:c.storeId,amount:p.amount,remaining:c.amount,date:p.date}); } }));
+  $("moneyDetailGrid").innerHTML = `
+    <div class="stat-block"><div class="stat-lbl">💵 Наличные</div><div class="stat-val blue">${money(cash)}</div></div>
+    <div class="stat-block"><div class="stat-lbl">💳 Kaspi</div><div class="stat-val blue">${money(kaspi)}</div></div>
+    <div class="stat-block"><div class="stat-lbl">📝 Конс.</div><div class="stat-val orange">${money(cons)}</div></div>
+    <div class="stat-block"><div class="stat-lbl">💚 Оплата долгов</div><div class="stat-val green">${money(debtPay)}</div></div>
+    <div class="stat-block span2"><div class="stat-lbl">✅ Общий приход</div><div class="stat-val green">${money(cash+kaspi+debtPay)}</div></div>
+  `;
+  if (!payments.length) {
+    $("debtPaymentsToday").innerHTML = '<div class="empty-state"><div class="icon">💳</div>Погашений долгов нет</div>';
+    return;
+  }
+  $("debtPaymentsToday").innerHTML = payments.map(p=>`
+    <div class="card-item">
+      <div class="card-head">
+        <span class="card-store">${esc(storeById(p.storeId))}</span>
+        <span class="card-sum">${money(p.amount)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-kv"><div class="card-k">Торговый</div><div class="card-v">${esc(p.rep)}</div></div>
+        <div class="card-kv"><div class="card-k">Остаток долга</div><div class="card-v red">${money(p.remaining)}</div></div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderDebts() {
+  const date = currentDate;
+  let newCons = getVisitsByDate(date).filter(v=>v.payment==="cons"&&v.status==="Посещено"&&v.total>0);
+  newCons = filterByRep(newCons, true);
+  $("newConsList").innerHTML = newCons.length ? newCons.map(c=>`
+    <div class="card-item">
+      <div class="card-head">
+        <span class="card-store">${esc(storeById(c.storeId))}</span>
+        <span class="card-sum" style="color:var(--orange)">${money(c.total)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-kv"><div class="card-k">Торговый</div><div class="card-v">${esc(getRepName(c))}</div></div>
+        <div class="card-kv"><div class="card-k">Дата</div><div class="card-v">${c.date}</div></div><div class="card-kv"><div class="card-k">Оплачено</div><div class="card-v green">${money(0)}</div></div><div class="card-kv"><div class="card-k">Остаток</div><div class="card-v red">${money(c.total)}</div></div><div class="card-kv"><div class="card-k">Статус</div><div class="card-v"><span class="pill orange">новая</span></div></div>
+      </div>
+    </div>
+  `).join("") : '<div class="empty-state"><div class="icon">📝</div>Новой консигнации нет</div>';
+
+  const paid=[];
+  let allCons = DB.cons.filter(c => !c.deletedAt && isSelectedAgent(c));
+  allCons.forEach(c=>(c.payments||[]).filter(isSelectedAgentPayment).forEach(p=>{ if(p.date===date) paid.push({rep:getRepName(c),storeId:c.storeId,amount:p.amount,remaining:c.amount,date:p.date}); }));
+  $("debtPaidList").innerHTML = paid.length ? paid.map(p=>`
+    <div class="card-item">
+      <div class="card-head">
+        <span class="card-store">${esc(storeById(p.storeId))}</span>
+        <span class="card-sum">${money(p.amount)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-kv"><div class="card-k">Торговый</div><div class="card-v">${esc(p.rep)}</div></div>
+        <div class="card-kv"><div class="card-k">Дата</div><div class="card-v">${p.date}</div></div><div class="card-kv"><div class="card-k">Оплачено</div><div class="card-v green">${money(p.amount)}</div></div><div class="card-kv"><div class="card-k">Остаток</div><div class="card-v red">${money(p.remaining)}</div></div>
+      </div>
+    </div>
+  `).join("") : '<div class="empty-state"><div class="icon">✅</div>Погашений сегодня нет</div>';
+
+  let open = getOpenDebts().filter(isSelectedAgent);
+  $("openDebtsList").innerHTML = open.length ? open.map(c=>{
+    const paid2=(c.originalAmount||c.amount)-c.amount;
+    const pct=c.originalAmount?Math.round((paid2/c.originalAmount)*100):0;
+    let fillClass = "";
+    if (pct < 40) fillClass = "danger";
+    else if (pct < 70) fillClass = "warn";
+    return `<div class="card-item">
+      <div class="card-head">
+        <span class="card-store">${esc(storeById(c.storeId))}</span>
+        <span class="card-sum" style="color:var(--red)">${money(c.amount)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-kv"><div class="card-k">Торговый</div><div class="card-v">${esc(getRepName(c))}</div></div>
+        <div class="card-kv"><div class="card-k">Дата</div><div class="card-v">${c.date}</div></div>
+        <div class="card-kv"><div class="card-k">Оплачено</div><div class="card-v green">${money(paid2)}</div></div>
+        <div class="card-kv"><div class="card-k">Остаток</div><div class="card-v red">${money(c.amount)}</div></div>
+        <div class="card-kv"><div class="card-k">% погаш.</div><div class="card-v">${pct}%</div></div>
+      </div>
+      <div style="padding:0 14px 12px;">
+        <div class="progress-wrap"><div class="progress-fill ${fillClass}" style="width:${pct}%"></div></div>
+      </div>
+    </div>`;
+  }).join("") : '<div class="empty-state"><div class="icon">🎉</div>Открытых долгов нет</div>';
+}
+
+function exchangePercent(exchangeQty, shipQty) {
+  const ship = Number(shipQty || 0);
+  const ex = Number(exchangeQty || 0);
+  if (ship <= 0) return 0;
+  return (ex / ship) * 100;
+}
+
+function exchangeLevel(percent) {
+  if (percent >= 20) return "bad";
+  if (percent >= 10) return "warn";
+  return "good";
+}
+
+function exchangeLabel(percent) {
+  if (percent >= 20) return "Проблема";
+  if (percent >= 10) return "Внимание";
+  return "Норма";
+}
+
+function renderExchangeBadge(exchangeQty, shipQty) {
+  const percent = exchangePercent(exchangeQty, shipQty);
+  const level = exchangeLevel(percent);
+  return `<span class="exchange-badge ${level}">Обмен ${percent.toFixed(1)}% · ${exchangeLabel(percent)}</span>`;
+}
+
+function renderExchangeMiniBar(exchangeQty, shipQty) {
+  const percent = exchangePercent(exchangeQty, shipQty);
+  const level = exchangeLevel(percent);
+  const width = Math.min(100, percent);
+  return `<div class="exchange-mini-bar"><div class="exchange-mini-fill ${level}" style="width:${width}%"></div></div>`;
+}
+function renderProducts() {
+  const range = $("rangeProducts")?.value || "month";
+  const sort = $("prodSort")?.value || "revenue";
+  const visits = getVisitsInRange(range).filter(v => v.status === "Посещено");
+
+  const stats = {};
+  PRODUCTS.forEach(p => stats[p.id] = { id: p.id, name: p.name, price: p.price, ship: 0, exch: 0, net: 0, revenue: 0, loss: 0 });
+  visits.forEach(v => {
+    PRODUCTS.forEach(p => {
+      const it = (v.items || {})[p.id] || {};
+      const sh = Number(it.ship) || 0;
+      const ex = Number(it.exchange) || 0;
+      const row = stats[p.id];
+      row.ship += sh;
+      row.exch += ex;
+      row.net += (sh - ex);
+      row.revenue += sh * p.price;
+      row.loss += ex * p.price;
+    });
+  });
+
+  let arr = Object.values(stats);
+  if (sort === "exchange") arr.sort((a, b) => (b.exch - a.exch));
+  else if (sort === "loss") arr.sort((a, b) => (b.loss - a.loss));
+  else arr.sort((a, b) => (b.revenue - a.revenue));
+
+  const top = arr.slice(0, 3).filter(x => x.ship > 0);
+  const worst = arr.filter(x => x.ship > 0).sort((a, b) => (b.loss - a.loss)).slice(0, 3);
+
+  $("productsContent").innerHTML = `
+    ${top.length ? `<div class="alert info">🏆 ТОП товары: ${top.map(t => `<b>${esc(t.name)}</b> (${money(t.revenue)})`).join(" · ")}</div>` : ""}
+    ${worst.length ? `<div class="alert warn">⚠️ Проблемные: ${worst.map(t => `<b>${esc(t.name)}</b> (потери ${money(t.loss)})`).join(" · ")}</div>` : ""}
+    ${arr.map(p => {
+      const lossCls = p.loss <= 0 ? "green" : p.loss <= 2000 ? "orange" : "red";
+      return `<div class="card-item">
+        <div class="card-head">
+          <span class="card-store">${esc(p.name)}</span>
+          <span class="card-sum">${money(p.revenue)}</span>
+        </div>
+        <div class="card-body">
+          <div class="card-kv"><div class="card-k">Отгружено</div><div class="card-v blue large">${p.ship}</div></div>
+          <div class="card-kv"><div class="card-k">Обмен</div><div class="card-v orange large">${p.exch}</div></div>
+          <div class="card-kv"><div class="card-k">Процент обмена</div><div class="card-v">${renderExchangeBadge(p.exch, p.ship)}</div></div>
+          <div class="card-kv"><div class="card-k">Чисто</div><div class="card-v green large">${p.net}</div></div>
+          <div class="card-kv"><div class="card-k">Потери</div><div class="card-v ${lossCls} large">${money(p.loss)}</div></div>
+        </div>
+        <div style="padding:0 14px 12px;">${renderExchangeMiniBar(p.exch, p.ship)}</div>
+      </div>`;
+    }).join("")}
+  `;
+}
+
+function productsForAdminVisits(visits) {
+  const catalog = new Map();
+  (PRODUCT_ADMIN_ROWS && PRODUCT_ADMIN_ROWS.length ? PRODUCT_ADMIN_ROWS : PRODUCTS).forEach(p => catalog.set(p.id, p));
+  (visits || []).forEach(v => {
+    Object.keys(v.items || {}).forEach(id => {
+      if (!catalog.has(id)) catalog.set(id, { id, name: id, price: 0, is_active: false });
+    });
+  });
+  return [...catalog.values()];
+}
+function setManagePanel(name) {
+  document.querySelectorAll(".manage-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.manage === name));
+  document.querySelectorAll(".manage-panel").forEach(panel => panel.classList.toggle("active", panel.id === "manage-" + name));
+}
+
+function renderManageReportsPanel() {
+  const fromEl = $("manageReportFrom"), toEl = $("manageReportTo"), agentEl = $("manageReportAgent"), btn = $("manageReportBtn");
+  if (!fromEl || !toEl || !agentEl || !btn) return;
+  const monthStart = currentDate.slice(0, 8) + "01";
+  if (!fromEl.value) fromEl.value = monthStart;
+  if (!toEl.value) toEl.value = currentDate;
+  const prev = agentEl.value || selectedAgentId || "all";
+  agentEl.innerHTML = `<option value="all">Все торговые</option>` + getActiveAgents().map(a => `<option value="${esc(agentIdOf(a))}">${esc(a.name || agentIdOf(a))}</option>`).join("");
+  agentEl.value = [...agentEl.options].some(o => o.value === prev) ? prev : "all";
+  btn.onclick = renderManageReport;
+}
+
+function reportAgentMatches(record, agentId) { return agentId === "all" || recordAgentId(record) === agentId; }
+
+function renderManageReport() {
+  const from = $("manageReportFrom")?.value || currentDate;
+  const to = $("manageReportTo")?.value || currentDate;
+  const agentId = $("manageReportAgent")?.value || "all";
+  const box = $("manageReportContent");
+  if (!box) return;
+  if (!from || !to || from > to) { box.innerHTML = `<div class="empty-state"><div class="icon">📅</div>Выберите корректный период</div>`; return; }
+  const visits = getAllVisits().filter(v => (v.date || "") >= from && (v.date || "") <= to && reportAgentMatches(v, agentId));
+  const visited = visits.filter(v => v.status === "Посещено");
+  const moneyStats = { cash: 0, kaspi: 0, cons: 0, debtPay: 0 };
+  const visitStats = { total: visits.length, ok: visited.length, refusal: 0, closed: 0, moved: 0 };
+  const productStats = {};
+  const repStats = {};
+  const reportProducts = productsForAdminVisits(visits);
+  reportProducts.forEach(p => productStats[p.id] = { name: p.name, ship: 0, shipSum: 0, exchange: 0, exchangeSum: 0, bonus: 0, paySum: 0 });
+  const ensureRep = name => repStats[name] || (repStats[name] = { name, cash: 0, kaspi: 0, cons: 0, debtPay: 0, ship: 0, exchange: 0, bonus: 0 });
+  visits.forEach(v => {
+    if (v.status === "Отказ") visitStats.refusal++;
+    else if (v.status === "Закрыт магазин") visitStats.closed++;
+    else if (v.status === "Перенести") visitStats.moved++;
+    if (v.status !== "Посещено") return;
+    const rep = ensureRep(getRepName(v));
+    if (v.payment === "cash") { moneyStats.cash += Number(v.total) || 0; rep.cash += Number(v.total) || 0; }
+    else if (v.payment === "kaspi") { moneyStats.kaspi += Number(v.total) || 0; rep.kaspi += Number(v.total) || 0; }
+    else if (v.payment === "cons") { moneyStats.cons += Number(v.total) || 0; rep.cons += Number(v.total) || 0; }
+    reportProducts.forEach(p => {
+      const it = (v.items || {})[p.id] || {};
+      const sh = Number(it.ship) || 0, ex = Number(it.exchange) || 0, bo = Number(it.bonus) || 0;
+      productStats[p.id].ship += sh; productStats[p.id].shipSum += sh * p.price;
+      productStats[p.id].exchange += ex; productStats[p.id].exchangeSum += ex * p.price;
+      productStats[p.id].bonus += bo; productStats[p.id].paySum += sh * p.price;
+      rep.ship += sh; rep.exchange += ex; rep.bonus += bo;
+    });
+  });
+  (DB.cons || []).filter(c => !c.deletedAt && reportAgentMatches(c, agentId)).forEach(c => (c.payments || []).forEach(p => {
+    if ((p.date || "") < from || (p.date || "") > to) return;
+    if (!reportAgentMatches(p, agentId) && !reportAgentMatches(c, agentId)) return;
+    const amount = Number(p.amount) || 0;
+    moneyStats.debtPay += amount;
+    ensureRep(getRepName(p) || getRepName(c)).debtPay += amount;
+  }));
+  const productRows = Object.values(productStats).filter(p => p.ship || p.exchange || p.bonus).map(p => `<div class="card-item"><div class="card-head"><span class="card-store">${esc(p.name)}</span><span class="card-sum">${money(p.paySum)}</span></div><div class="card-body"><div class="card-kv"><div class="card-k">Отгрузка шт</div><div class="card-v blue large">${p.ship}</div></div><div class="card-kv"><div class="card-k">Отгрузка сумма</div><div class="card-v">${money(p.shipSum)}</div></div><div class="card-kv"><div class="card-k">Обмен шт</div><div class="card-v orange large">${p.exchange}</div></div><div class="card-kv"><div class="card-k">Обмен сумма</div><div class="card-v orange">${money(p.exchangeSum)}</div></div><div class="card-kv"><div class="card-k">Бонус шт</div><div class="card-v purple large">${p.bonus}</div></div><div class="card-kv"><div class="card-k">К оплате</div><div class="card-v green">${money(p.paySum)}</div></div></div></div>`).join("");
+  const repRows = Object.values(repStats).map(r => `<div class="card-item"><div class="card-head"><span class="card-store">${esc(r.name)}</span><span class="card-sum">${money(r.cash + r.kaspi + r.debtPay)}</span></div><div class="card-body"><div class="card-kv"><div class="card-k">Наличные</div><div class="card-v blue">${money(r.cash)}</div></div><div class="card-kv"><div class="card-k">Kaspi</div><div class="card-v blue">${money(r.kaspi)}</div></div><div class="card-kv"><div class="card-k">Консигнация</div><div class="card-v orange">${money(r.cons)}</div></div><div class="card-kv"><div class="card-k">Погашение</div><div class="card-v green">${money(r.debtPay)}</div></div><div class="card-kv"><div class="card-k">Отгрузка</div><div class="card-v">${r.ship} шт</div></div><div class="card-kv"><div class="card-k">Обмен</div><div class="card-v orange">${r.exchange} шт</div></div><div class="card-kv"><div class="card-k">Бонус</div><div class="card-v purple">${r.bonus} шт</div></div></div></div>`).join("");
+  box.innerHTML = `<div class="stat-grid"><div class="stat-block"><div class="stat-lbl">Наличные</div><div class="stat-val blue">${money(moneyStats.cash)}</div></div><div class="stat-block"><div class="stat-lbl">Kaspi</div><div class="stat-val blue">${money(moneyStats.kaspi)}</div></div><div class="stat-block"><div class="stat-lbl">Консигнация</div><div class="stat-val orange">${money(moneyStats.cons)}</div></div><div class="stat-block"><div class="stat-lbl">Погашение долгов</div><div class="stat-val green">${money(moneyStats.debtPay)}</div></div><div class="stat-block span2"><div class="stat-lbl">Итого приход</div><div class="stat-val green">${money(moneyStats.cash + moneyStats.kaspi + moneyStats.debtPay)}</div></div></div><div style="height:12px"></div><div class="section-title"><span class="ti">📋</span> Визиты</div><div class="stat-grid"><div class="stat-block"><div class="stat-lbl">Всего</div><div class="stat-val">${visitStats.total}</div></div><div class="stat-block"><div class="stat-lbl">Посещено</div><div class="stat-val green">${visitStats.ok}</div></div><div class="stat-block"><div class="stat-lbl">Отказы</div><div class="stat-val orange">${visitStats.refusal}</div></div><div class="stat-block"><div class="stat-lbl">Закрыт магазин</div><div class="stat-val red">${visitStats.closed}</div></div><div class="stat-block"><div class="stat-lbl">Перенос</div><div class="stat-val blue">${visitStats.moved}</div></div></div><div style="height:12px"></div><div class="section-title"><span class="ti">📦</span> Товары</div><div class="card-list">${productRows || `<div class="empty-state"><div class="icon">📦</div>Нет товаров за период</div>`}</div><div style="height:12px"></div><div class="section-title"><span class="ti">👤</span> По торговым</div><div class="card-list">${repRows || `<div class="empty-state"><div class="icon">👤</div>Нет данных по торговым</div>`}</div>`;
+}
+function renderProductsManagement() {
+  const box = $("productsManageContent");
+  if (!box) return;
+  const activeRows = PRODUCT_ADMIN_ROWS.filter(p => p.is_active !== false);
+  const archiveRows = PRODUCT_ADMIN_ROWS.filter(p => p.is_active === false);
+  const rows = productsManageMode === "archive" ? archiveRows : activeRows;
+  box.innerHTML = `
+    <div class="filter-row" style="padding:0 0 12px">
+      <input class="fsel" id="newProductName" type="text" placeholder="Название товара" style="min-width:180px">
+      <input class="fsel" id="newProductPrice" type="number" min="0" placeholder="Цена" style="max-width:120px">
+      <button class="analytics-tab" type="button" id="addProductBtn">Добавить товар</button>
+    </div>
+    <div class="filter-row" style="padding:0 0 12px">
+      <button class="analytics-tab ${productsManageMode === "active" ? "active" : ""}" type="button" data-product-mode="active">Активные</button>
+      <button class="analytics-tab ${productsManageMode === "archive" ? "active" : ""}" type="button" data-product-mode="archive">Архив</button>
+    </div>
+    <div class="card-list ${productsManageMode === "active" ? "product-sort-list" : ""}" id="productsCardList">
+      ${rows.length ? rows.map(p => `
+        <div class="card-item ${productsManageMode === "active" ? "draggable" : ""}" ${productsManageMode === "active" ? `draggable="true" data-product-id="${esc(p.id)}"` : ""}>
+          ${productsManageMode === "active" ? `<span class="drag-handle">☰</span>` : ""}
+          <div class="card-head">
+            <span class="card-store">${esc(p.name)}</span>
+            <span class="pill ${p.is_active === false ? "red" : "green"}">${p.is_active === false ? "архив" : "активен"}</span>
+          </div>
+          <div class="card-body">
+            <div class="card-kv"><div class="card-k">Цена</div><div class="card-v">${money(p.price)}</div></div>
+            <div class="card-kv"><div class="card-k">Продажи</div><div class="card-v">${p.is_active === false ? "скрыт" : "включён"}</div></div>
+          </div>
+          <div class="filter-row" style="padding:10px 0 0">
+            ${p.is_active === false
+              ? `<button class="analytics-tab" type="button" data-restore-product="${esc(p.id)}">Восстановить</button>`
+              : `<button class="analytics-tab" type="button" data-edit-product="${esc(p.id)}">Изменить</button><button class="analytics-tab" type="button" data-delete-product="${esc(p.id)}">Удалить</button><button class="analytics-tab" type="button" data-move-product="${esc(p.id)}" data-move-dir="up">↑ Вверх</button><button class="analytics-tab" type="button" data-move-product="${esc(p.id)}" data-move-dir="down">↓ Вниз</button>`}
+          </div>
+        </div>
+      `).join("") : `<div class="empty-state"><div class="icon">📦</div>${productsManageMode === "archive" ? "Архив пуст" : "Активных товаров нет"}</div>`}
+    </div>
+  `;
+  document.querySelectorAll("[data-product-mode]").forEach(btn => {
+    btn.onclick = () => { productsManageMode = btn.dataset.productMode; renderProductsManagement(); };
+  });
+  document.querySelectorAll("[data-edit-product]").forEach(btn => {
+    btn.onclick = () => editProduct(btn.dataset.editProduct);
+  });
+  document.querySelectorAll("[data-delete-product]").forEach(btn => {
+    btn.onclick = () => deleteProduct(btn.dataset.deleteProduct);
+  });
+  document.querySelectorAll("[data-restore-product]").forEach(btn => {
+    btn.onclick = () => restoreProduct(btn.dataset.restoreProduct);
+  });
+  document.querySelectorAll("[data-move-product]").forEach(btn => {
+    btn.onclick = () => moveProductSort(btn.dataset.moveProduct, btn.dataset.moveDir);
+  });
+  const addBtn = $("addProductBtn");
+  if (addBtn) addBtn.onclick = addProduct;
+  box.querySelectorAll("input,select,textarea").forEach(el => {
+    el.oninput = () => { manageDirty = true; };
+    el.onchange = () => { manageDirty = true; };
+  });
+
+  if (productsManageMode === "active") bindProductDragAndDrop();
+}
+
+let draggedProductId = null;
+
+function bindProductDragAndDrop() {
+  const list = document.querySelector("#productsManageContent .product-sort-list");
+  if (!list) return;
+
+  const cards = [...list.querySelectorAll(".card-item.draggable")];
+
+  cards.forEach(card => {
+    card.addEventListener("dragstart", e => {
+      draggedProductId = card.dataset.productId;
+      card.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", draggedProductId);
+    });
+
+    card.addEventListener("dragend", () => {
+      card.classList.remove("dragging");
+      draggedProductId = null;
+    });
+
+    card.addEventListener("dragover", e => {
+      e.preventDefault();
+      const dragging = list.querySelector(".dragging");
+      if (!dragging || dragging === card) return;
+
+      const box = card.getBoundingClientRect();
+      const after = e.clientY > box.top + box.height / 2;
+
+      if (after) {
+        card.after(dragging);
+      } else {
+        card.before(dragging);
+      }
+    });
+
+    card.addEventListener("drop", async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!draggedProductId) return;
+      await saveProductSortOrderFromDom();
+    });
+  });
+
+  list.addEventListener("dragover", e => {
+    e.preventDefault();
+  });
+
+  list.addEventListener("drop", async e => {
+    e.preventDefault();
+    if (!draggedProductId) return;
+    await saveProductSortOrderFromDom();
+  });
+}
+
+async function saveProductSortOrderFromDom() {
+  const cards = [...document.querySelectorAll("#productsManageContent .product-sort-list .card-item.draggable")];
+
+  const updates = cards.map((card, index) => ({
+    id: card.dataset.productId,
+    sort_order: index + 1
+  })).filter(x => x.id);
+
+  try {
+    setStatus("loading");
+    for (const item of updates) {
+      const r = await fetch(PRODUCTS_URL + "?id=eq." + encodeURIComponent(item.id), {
+        method: "PATCH",
+        headers: {
+          ...SUPA_HEAD,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal"
+        },
+        body: JSON.stringify({ sort_order: item.sort_order })
+      });
+
+      if (!r.ok) {
+        console.error("saveProductSortOrder error:", item.id, await r.text());
+        alert("Ошибка сохранения порядка товаров");
+        setStatus("err");
+        return;
+      }
+    }
+
+    await loadProductsFromCloud();
+    renderProductsManagement();
+    renderAll();
+    manageDirty = false;
+    setStatus("ok");
+  } catch (e) {
+    setStatus("err");
+    console.error("saveProductSortOrder error:", e);
+    alert("Ошибка сохранения порядка товаров");
+  }
+}
+
+async function moveProductSort(productId, dir) {
+  const cards = [...document.querySelectorAll("#productsManageContent .product-sort-list .card-item.draggable")];
+  const index = cards.findIndex(card => card.dataset.productId === productId);
+  if (index < 0) return;
+
+  const swapIndex = dir === "up" ? index - 1 : index + 1;
+  if (swapIndex < 0 || swapIndex >= cards.length) return;
+
+  if (dir === "up") {
+    cards[swapIndex].before(cards[index]);
+  } else {
+    cards[swapIndex].after(cards[index]);
+  }
+
+  await saveProductSortOrderFromDom();
+}
+
+async function updateProductPrice(productId) {
+  return editProduct(productId);
+}
+
+async function editProduct(productId) {
+  const product = PRODUCT_ADMIN_ROWS.find(p => p.id === productId);
+  if (!product) return;
+  const newName = prompt("Название товара", product.name || "");
+  if (newName === null) return;
+  const name = newName.trim();
+  if (!name) { alert("Введите название товара"); return; }
+  const rawPrice = prompt("Цена товара", String(Number(product.price) || 0));
+  if (rawPrice === null) return;
+  const price = Math.max(0, Number(String(rawPrice).replace(/\s/g, "").replace(",", ".")) || 0);
+  if (!price) { alert("Введите цену товара"); return; }
+  try {
+    setStatus("loading");
+    const r = await fetch(PRODUCTS_URL + "?id=eq." + encodeURIComponent(productId), {
+      method: "PATCH",
+      headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ name, price })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    // Локально обновить перед загрузкой
+    [PRODUCTS, PRODUCT_ADMIN_ROWS].forEach(list => {
+      const p = list.find(x => x.id === productId);
+      if (p) {
+        p.name = name;
+        p.price = price;
+      }
+    });
+    await loadProductsFromCloud();
+    await loadStockFromCloud();
+    renderProductsManagement();
+    renderProducts();
+    renderAll();
+    manageDirty = false;
+    setStatus("ok");
+    alert("Товар сохранён");
+  } catch (e) {
+    setStatus("err");
+    console.error("editProduct error:", e);
+    alert("Ошибка сохранения товара");
+  }
+}
+
+async function disableProduct(productId) {
+  return deleteProduct(productId);
+}
+
+async function deleteProduct(productId) {
+  const product = PRODUCT_ADMIN_ROWS.find(p => p.id === productId);
+  if (!product) return;
+  if (!confirm("Удалить товар? Он исчезнет из продаж, но останется в истории.")) return;
+  try {
+    setStatus("loading");
+    const r = await fetch(PRODUCTS_URL + "?id=eq." + encodeURIComponent(productId), {
+      method: "PATCH",
+      headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ is_active: false })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    await loadProductsFromCloud();
+    await ensureStockForAllAgents();
+    await loadStockFromCloud();
+    renderAll();
+    manageDirty = false;
+    setStatus("ok");
+  } catch (e) {
+    setStatus("err");
+    console.error("deleteProduct error:", e);
+    alert("Ошибка удаления товара");
+  }
+}
+
+async function restoreProduct(productId) {
+  const product = PRODUCT_ADMIN_ROWS.find(p => p.id === productId);
+  if (!product) return;
+  try {
+    setStatus("loading");
+    const r = await fetch(PRODUCTS_URL + "?id=eq." + encodeURIComponent(productId), {
+      method: "PATCH",
+      headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ is_active: true })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    await loadProductsFromCloud();
+    await ensureStockForAllAgents();
+    await loadStockFromCloud();
+    renderAll();
+    manageDirty = false;
+    setStatus("ok");
+  } catch (e) {
+    setStatus("err");
+    console.error("restoreProduct error:", e);
+    alert("Ошибка восстановления товара");
+  }
+}
+
+function generateProductId(name) {
+  const map = {
+    а:"a", б:"b", в:"v", г:"g", д:"d", е:"e", ё:"e", ж:"zh", з:"z", и:"i", й:"y",
+    к:"k", л:"l", м:"m", н:"n", о:"o", п:"p", р:"r", с:"s", т:"t", у:"u", ф:"f",
+    х:"h", ц:"c", ч:"ch", ш:"sh", щ:"sch", ъ:"", ы:"y", ь:"", э:"e", ю:"yu", я:"ya"
+  };
+  const normalized = String(name || "")
+    .toLowerCase()
+    .trim()
+    .replace(/сэндвич/g, "sandwich")
+    .replace(/хот[\s-]*дог/g, "hot dog")
+    .replace(/курицей|курица|курицей/g, "kurica")
+    .replace(/колбасой|колбаса/g, "kolbasa")
+    .replace(/чечил/g, "chechil")
+    .replace(/\bс\b/g, " ");
+  return normalized
+    .split("")
+    .map(ch => map[ch] ?? ch)
+    .join("")
+    .replace(/[^a-z0-9\s]/gi, "")
+    .replace(/\s+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function productIdFromName(name) {
+  const map = {
+    а:"a", б:"b", в:"v", г:"g", д:"d", е:"e", ё:"e", ж:"zh", з:"z", и:"i", й:"y",
+    к:"k", л:"l", м:"m", н:"n", о:"o", п:"p", р:"r", с:"s", т:"t", у:"u", ф:"f",
+    х:"h", ц:"c", ч:"ch", ш:"sh", щ:"sch", ъ:"", ы:"y", ь:"", э:"e", ю:"yu", я:"ya"
+  };
+  const slug = String(name || "")
+    .trim()
+    .toLowerCase()
+    .split("")
+    .map(ch => map[ch] ?? ch)
+    .join("")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return slug || "product";
+}
+
+async function addProduct() {
+  const name = ($("newProductName")?.value || "").trim();
+  const price = Math.max(0, Number($("newProductPrice")?.value) || 0);
+  const id = productIdFromName(name);
+  if (!name) { alert("Введите название товара"); return; }
+  if (!price) { alert("Введите цену товара"); return; }
+  if (!isValidProductId(id)) { productIdAlert(); return; }
+  const normalizedName = name.toLowerCase();
+  if (PRODUCT_ADMIN_ROWS.some(p => p.id === id || String(p.name || "").trim().toLowerCase() === normalizedName)) {
+    alert("Товар уже существует");
+    return;
+  }
+  const maxSort = Math.max(0, ...PRODUCT_ADMIN_ROWS.map(p => Number(p.sort_order || 0)));
+  const sort_order = maxSort + 1;
+  try {
+    setStatus("loading");
+    const check = await fetch(PRODUCTS_URL + "?id=eq." + encodeURIComponent(id) + "&select=id", { headers: SUPA_HEAD });
+    if (!check.ok) throw new Error(await check.text());
+    const existing = await check.json();
+    if (Array.isArray(existing) && existing.length) {
+      alert("Товар с таким названием уже существует");
+      setStatus("ok");
+      return;
+    }
+    const r = await fetch(PRODUCTS_URL + "?on_conflict=id", {
+      method: "POST",
+      headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ id, name, price, cost: 0, is_active: true, sort_order })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    await loadProductsFromCloud();
+    try {
+      await ensureStockForAllAgents();
+    } catch (stockError) {
+      console.error("ensureStockForAllAgents error:", stockError);
+      alert("Товар добавлен, но не удалось создать остатки. Обновите админку или проверьте stock.");
+    }
+    await loadStockFromCloud();
+    if ($("newProductName")) $("newProductName").value = "";
+    if ($("newProductPrice")) $("newProductPrice").value = "";
+    renderAll();
+    manageDirty = false;
+    setStatus("ok");
+    alert("Товар добавлен");
+  } catch (e) {
+    setStatus("err");
+    const msg = e?.message || String(e);
+    console.error("addProduct error:", e);
+    alert("Ошибка добавления товара: " + msg);
+  }
+}
+
+function renderReps() {
+  const range = $("rangeReps")?.value || "month";
+  const sort = $("repSort")?.value || "revenue";
+  const visits = getVisitsInRange(range);
+  const visited = visits.filter(v => v.status === "Посещено");
+  const from = getRangeStart(range);
+  const { cons } = getConsInRange(range);
+
+  const debtByRep = getDebtByRep();
+
+  const reps = {};
+  const ensure = (name) => reps[name] || (reps[name] = { rep: name, cash: 0, kaspi: 0, cons: 0, debtPay: 0, total: 0, visits: 0, ok: 0, ship: 0, exch: 0 });
+
+  visits.forEach(v => {
+    const r = ensure(getRepName(v));
+    r.visits++;
+    if (v.status === "Посещено") r.ok++;
+    if (v.status !== "Посещено") return;
+    if (v.payment === "cash") r.cash += v.total || 0;
+    else if (v.payment === "kaspi") r.kaspi += v.total || 0;
+    else if (v.payment === "cons") r.cons += v.total || 0;
+    PRODUCTS.forEach(p => {
+      const it = (v.items || {})[p.id] || {};
+      r.ship += Number(it.ship) || 0;
+      r.exch += Number(it.exchange) || 0;
+    });
+  });
+
+  cons.forEach(c => (c.payments || []).filter(isSelectedAgentPayment).forEach(p => {
+    if ((p.date || "") < from || (p.date || "") > currentDate) return;
+    const r = ensure(getRepName(c));
+    r.debtPay += Number(p.amount) || 0;
+  }));
+
+  Object.values(reps).forEach(r => {
+    r.revenue = r.cash + r.kaspi;
+    r.total = r.revenue + r.debtPay;
+    r.successPct = pct(r.ok, r.visits);
+    r.avg = r.ok ? Math.round((r.revenue) / r.ok) : 0;
+    r.exPct = exchangePercent(r.exch, r.ship);
+    r.debt = debtByRep[r.rep] || 0;
+  });
+
+  let arr = Object.values(reps);
+  if (sort === "exchange") arr.sort((a, b) => (b.exPct - a.exPct));
+  else if (sort === "debts") arr.sort((a, b) => (b.debt - a.debt));
+  else arr.sort((a, b) => (b.revenue - a.revenue));
+
+  $("repsList").innerHTML = arr.length ? arr.map(r => {
+    const debtCls = r.debt <= 0 ? "green" : r.debt <= 50000 ? "orange" : "red";
+    return `<div class="card-item">
+      <div class="card-head">
+        <span class="card-store">${esc(r.rep)}</span>
+        <span class="card-sum">${money(r.revenue)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-kv"><div class="card-k">Выручка</div><div class="card-v green large">${money(r.revenue)}</div></div>
+        <div class="card-kv"><div class="card-k">Консигнация</div><div class="card-v orange large">${money(r.cons)}</div></div>
+        <div class="card-kv"><div class="card-k">Погашение</div><div class="card-v green large">${money(r.debtPay)}</div></div>
+        <div class="card-kv"><div class="card-k">Приход</div><div class="card-v blue large">${money(r.total)}</div></div>
+        <div class="card-kv"><div class="card-k">Визитов</div><div class="card-v large">${r.visits}</div></div>
+        <div class="card-kv"><div class="card-k">Успешных</div><div class="card-v large">${r.ok} (${r.successPct}%)</div></div>
+        <div class="card-kv"><div class="card-k">Средний чек</div><div class="card-v large">${money(r.avg)}</div></div>
+        <div class="card-kv"><div class="card-k">Отгрузка</div><div class="card-v blue large">${r.ship} шт</div></div>
+        <div class="card-kv"><div class="card-k">Обмен</div><div class="card-v orange large">${r.exch} шт</div></div>
+        <div class="card-kv"><div class="card-k">Процент обмена</div><div class="card-v">${renderExchangeBadge(r.exch, r.ship)}</div></div>
+        <div class="card-kv"><div class="card-k">Долги</div><div class="card-v ${debtCls} large">${money(r.debt)}</div></div>
+      </div>
+      <div style="padding:0 14px 12px;">${renderExchangeMiniBar(r.exch, r.ship)}</div>
+    </div>`;
+  }).join("") : `<div class="empty-state"><div class="icon">👤</div>Нет данных</div>`;
+}
+
+function renderStoresAnalytics() {
+  const range = $("rangeStores")?.value || "month";
+  const mode = $("storeSort")?.value || "best";
+  const visits = getVisitsInRange(range);
+  const visited = visits.filter(v => v.status === "Посещено");
+  const debtByStore = getOpenDebtByStore();
+
+  const stats = {};
+  const activeStoreIds = new Set(getActiveStores().filter(isSelectedAgent).map(s => s.id));
+  const ensure = (sid) => stats[sid] || (stats[sid] = { storeId: sid, name: storeById(sid), revenue: 0, visits: 0, ok: 0, ship: 0, exch: 0, refusals: 0 });
+
+  visits.forEach(v => {
+    if (!activeStoreIds.has(v.storeId)) return;
+    const s = ensure(v.storeId);
+    s.visits++;
+    if (v.status === "Посещено") s.ok++;
+    if (v.status === "Отказ") s.refusals++;
+    if (v.status !== "Посещено") return;
+    if (v.payment === "cash" || v.payment === "kaspi") s.revenue += v.total || 0;
+    PRODUCTS.forEach(p => {
+      const it = (v.items || {})[p.id] || {};
+      s.ship += Number(it.ship) || 0;
+      s.exch += Number(it.exchange) || 0;
+    });
+  });
+
+  let arr = Object.values(stats).map(s => {
+    const exPct = exchangePercent(s.exch, s.ship);
+    const avg = s.ok ? Math.round(s.revenue / s.ok) : 0;
+    const debt = debtByStore[s.storeId] || 0;
+    const netRevenue = s.revenue; // (cash+kaspi) already net. debt doesn't reduce revenue here.
+    return { ...s, exPct, avg, debt, netRevenue };
+  });
+
+  if (mode === "worstExchange") arr.sort((a, b) => (b.exPct - a.exPct));
+  else if (mode === "debtors") arr.sort((a, b) => (b.debt - a.debt));
+  else arr.sort((a, b) => (b.revenue - a.revenue));
+
+  $("storesList").innerHTML = arr.length ? arr.map(s => {
+    const debtCls = s.debt <= 0 ? "green" : s.debt <= 50000 ? "orange" : "red";
+    return `<div class="card-item">
+      <div class="card-head">
+        <span class="card-store">${esc(s.name)}</span>
+        <span class="card-sum">${money(s.revenue)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-kv"><div class="card-k">Выручка</div><div class="card-v green large">${money(s.revenue)}</div></div>
+        <div class="card-kv"><div class="card-k">Отгрузка</div><div class="card-v blue large">${s.ship} шт</div></div>
+        <div class="card-kv"><div class="card-k">Обмен</div><div class="card-v orange large">${s.exch} шт</div></div>
+        <div class="card-kv"><div class="card-k">Процент обмена</div><div class="card-v">${renderExchangeBadge(s.exch, s.ship)}</div></div>
+        <div class="card-kv"><div class="card-k">Средний чек</div><div class="card-v large">${money(s.avg)}</div></div>
+        <div class="card-kv"><div class="card-k">Долг</div><div class="card-v ${debtCls} large">${money(s.debt)}</div></div>
+        <div class="card-kv"><div class="card-k">Визитов</div><div class="card-v large">${s.visits}</div></div>
+        <div class="card-kv"><div class="card-k">Успешных</div><div class="card-v large">${s.ok} (${pct(s.ok, s.visits)}%)</div></div>
+        <div class="card-kv"><div class="card-k">Отказов</div><div class="card-v orange large">${s.refusals}</div></div>
+      </div>
+      <div style="padding:0 14px 12px;">${renderExchangeMiniBar(s.exch, s.ship)}${exchangeLevel(s.exPct) === "bad" ? `<div class="exchange-problem-note">Проблемная точка: высокий процент обмена</div>` : ""}</div>
+    </div>`;
+  }).join("") : `<div class="empty-state"><div class="icon">🏪</div>Нет данных</div>`;
+}
+
+function renderLosses() {
+  const range = $("rangeLosses")?.value || "month";
+  const from = getRangeStart(range);
+  const visits = getVisitsInRange(range).filter(v => v.status === "Посещено");
+
+  let totalLoss = 0;
+  const byProd = {};
+  const byRep = {};
+  const byStore = {};
+  PRODUCTS.forEach(p => byProd[p.id] = { id: p.id, name: p.name, loss: 0, exch: 0 });
+
+  visits.forEach(v => {
+    const rep = getRepName(v);
+    const sid = v.storeId;
+    const storeName = storeById(sid);
+    let loss = 0;
+    PRODUCTS.forEach(p => {
+      const it = (v.items || {})[p.id] || {};
+      const ex = Number(it.exchange) || 0;
+      if (ex <= 0) return;
+      const l = ex * p.price;
+      byProd[p.id].loss += l;
+      byProd[p.id].exch += ex;
+      loss += l;
+    });
+    totalLoss += loss;
+    byRep[rep] = (byRep[rep] || 0) + loss;
+    byStore[storeName] = (byStore[storeName] || 0) + loss;
+  });
+
+  const prodArr = Object.values(byProd).filter(x => x.loss > 0).sort((a, b) => b.loss - a.loss);
+  const repArr = Object.entries(byRep).map(([k, v]) => ({ name: k, loss: v })).sort((a, b) => b.loss - a.loss);
+  const storeArr = Object.entries(byStore).map(([k, v]) => ({ name: k, loss: v })).sort((a, b) => b.loss - a.loss);
+
+  $("lossesTopGrid").innerHTML = `
+    <div class="stat-block span2"><div class="stat-lbl">📉 Общие потери</div><div class="stat-val red">${money(totalLoss)}</div></div>
+    <div class="stat-block"><div class="stat-lbl">📦 Товаров с потерями</div><div class="stat-val orange">${prodArr.length}</div></div>
+    <div class="stat-block"><div class="stat-lbl">👤 Торговых</div><div class="stat-val">${repArr.length}</div></div>
+  `;
+
+  $("lossesByProducts").innerHTML = prodArr.length ? prodArr.map(p => `
+    <div class="card-item">
+      <div class="card-head">
+        <span class="card-store">${esc(p.name)}</span>
+        <span class="card-sum" style="color:var(--red)">${money(p.loss)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-kv"><div class="card-k">Обмен</div><div class="card-v orange large">${p.exch}</div></div>
+        <div class="card-kv"><div class="card-k">Потери</div><div class="card-v red large">${money(p.loss)}</div></div>
+      </div>
+    </div>
+  `).join("") : `<div class="empty-state"><div class="icon">📦</div>Потерь нет</div>`;
+
+  $("lossesByReps").innerHTML = repArr.length ? repArr.map(r => `
+    <div class="card-item">
+      <div class="card-head">
+        <span class="card-store">${esc(r.name)}</span>
+        <span class="card-sum" style="color:var(--red)">${money(r.loss)}</span>
+      </div>
+    </div>
+  `).join("") : `<div class="empty-state"><div class="icon">👤</div>Нет данных</div>`;
+
+  $("lossesByStores").innerHTML = storeArr.length ? storeArr.map(s => `
+    <div class="card-item">
+      <div class="card-head">
+        <span class="card-store">${esc(s.name)}</span>
+        <span class="card-sum" style="color:var(--red)">${money(s.loss)}</span>
+      </div>
+    </div>
+  `).join("") : `<div class="empty-state"><div class="icon">🏪</div>Нет данных</div>`;
+}
+
+function renderTrend() {
+  const range = $("rangeTrend")?.value || "month";
+  const from = getRangeStart(range);
+  const visits = getVisitsInRange(range).filter(v => v.status === "Посещено");
+
+  const dayMap = {};
+  for (let d = from; d <= currentDate; ) {
+    dayMap[d] = { date: d, revenue: 0 };
+    const nd = isoToDate(d);
+    nd.setDate(nd.getDate() + 1);
+    d = nd.toISOString().slice(0,10);
+  }
+
+  visits.forEach(v => {
+    if (!dayMap[v.date]) return;
+    if (v.payment === "cash" || v.payment === "kaspi") dayMap[v.date].revenue += v.total || 0;
+  });
+
+  const points = Object.values(dayMap).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const values = points.map(p => p.revenue);
+  const maxV = Math.max(1, ...values);
+  const w = 320, h = 140, pad = 10;
+
+  const sx = (i) => pad + (points.length <= 1 ? 0 : (i / (points.length - 1)) * (w - pad * 2));
+  const sy = (v) => pad + (1 - (v / maxV)) * (h - pad * 2);
+
+  const dLine = points.map((p, i) => `${i === 0 ? "M" : "L"} ${sx(i).toFixed(2)} ${sy(p.revenue).toFixed(2)}`).join(" ");
+  const dFill = `M ${sx(0).toFixed(2)} ${sy(0).toFixed(2)} ` +
+    points.map((p, i) => `L ${sx(i).toFixed(2)} ${sy(p.revenue).toFixed(2)}`).join(" ") +
+    ` L ${sx(points.length - 1).toFixed(2)} ${sy(0).toFixed(2)} Z`;
+
+  const total = values.reduce((a, b) => a + b, 0);
+  const avg = points.length ? Math.round(total / points.length) : 0;
+
+  $("trendChart").innerHTML = `
+    <div class="chart-wrap">
+      <div class="chart-legend">
+        <div>
+          <div class="t">Выручка по дням</div>
+          <div class="s">${esc(from)} — ${esc(currentDate)}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="t">${money(total)}</div>
+          <div class="s">среднее: ${money(avg)}</div>
+        </div>
+      </div>
+      <svg class="chart-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+        <line class="chart-axis" x1="${pad}" y1="${h - pad}" x2="${w - pad}" y2="${h - pad}"></line>
+        <path class="chart-fill" d="${dFill}"></path>
+        <path class="chart-line" d="${dLine}"></path>
+        ${points.map((p, i) => `<circle class="chart-dot" cx="${sx(i).toFixed(2)}" cy="${sy(p.revenue).toFixed(2)}" r="2.6"></circle>`).join("")}
+      </svg>
+      <div class="kpi-row">
+        <div class="kpi-pill"><b>${points.length}</b> дней</div>
+        <div class="kpi-pill"><b>${money(maxV)}</b> пик</div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
+// MODAL SHEET
+// ============================================
+function showVisitSheet(visit) {
+  const store = DB.stores.find(s=>s.id===visit.storeId);
+  $("sheetTitle").textContent = store?.name || "Магазин удалён";
+  let totalShip=0,totalExch=0,totalBonus=0;
+  const prodRows = PRODUCTS.map(p=>{
+    const it=(visit.items||{})[p.id]||{};
+    const sh=Number(it.ship)||0, ex=Number(it.exchange)||0, bo=Number(it.bonus)||0;
+    if(!sh&&!ex&&!bo) return "";
+    totalShip+=sh; totalExch+=ex; totalBonus+=bo;
+    return `<div class="detail-row"><div class="detail-k">${p.name}</div><div class="detail-v">📦${sh} 🔄${ex} 🎁${bo} = ${money(sh*p.price)}</div></div>`;
+  }).filter(Boolean).join("");
+  const payLabel = visit.payment==="cash"?"💵 Наличные":visit.payment==="kaspi"?"💳 Kaspi":"📝 Консигнация";
+  $("sheetBody").innerHTML = `
+    <div class="detail-row"><div class="detail-k">Торговый</div><div class="detail-v">${esc(getRepName(visit))}</div></div>
+    <div class="detail-row"><div class="detail-k">Статус</div><div class="detail-v"><span class="pill ${visit.status==="Посещено"?"green":"orange"}">${visit.status}</span></div></div>
+    <div class="detail-row"><div class="detail-k">Дата</div><div class="detail-v">${visit.date}</div></div>
+    <div class="detail-row"><div class="detail-k">Оплата</div><div class="detail-v">${payLabel}</div></div>
+    <div class="detail-row"><div class="detail-k">Сумма</div><div class="detail-v big">${money(visit.total)}</div></div>
+    <div class="detail-row"><div class="detail-k">Отгрузка / Обмен / Бонус</div><div class="detail-v">${totalShip} / ${totalExch} / ${totalBonus}</div></div>
+    ${prodRows ? `<div style="margin-top:16px;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📦 Товары</div>${prodRows}` : ""}
+    ${visit.comment ? `<div style="margin-top:12px;background:var(--orange-bg);border-left:3px solid var(--orange);padding:12px;border-radius:12px;font-size:13px;font-weight:700;color:var(--orange);">💬 ${esc(visit.comment)}</div>` : ""}
+    <div style="height:20px;"></div>
+  `;
+  $("visitSheet").classList.add("active");
+}
+
+function closeSheet() { $("visitSheet").classList.remove("active"); }
+function setAnalyticsPanel(name) {
+  document.querySelectorAll(".analytics-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.analytics === name));
+  document.querySelectorAll(".analytics-panel").forEach(panel => panel.classList.toggle("active", panel.id === "analytics-" + name));
+}
+
+// ============================================
+// NAVIGATION & EVENTS
+// ============================================
+function goToPage(name) {
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".tab-item").forEach(t=>t.classList.remove("active"));
+  $("page-"+name).classList.add("active");
+  document.querySelector(`.tab-item[data-page="${name}"]`).classList.add("active");
+  window.scrollTo({top:0});
+}
+
+function canAutoRefresh() {
+  const tag = document.activeElement?.tagName;
+  if (tag && ["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return false;
+  if (document.querySelector(".sheet-overlay.active")) return false;
+  if (manageDirty) return false;
+  return true;
+}
+
+document.querySelectorAll(".tab-item").forEach(t=>{ t.onclick = ()=> goToPage(t.dataset.page); });
+const saveBtn = $("agentSaveBtn");
+if (saveBtn) {
+  saveBtn.onclick = () => {
+    const editingId = $("agentId")?.value || "";
+    if (editingId) {
+      updateAgent();
+    } else {
+      createAgent();
+    }
+  };
+}
+document.querySelectorAll("#page-manage input, #page-manage select, #page-manage textarea").forEach(el => {
+  el.addEventListener("input", () => { manageDirty = true; });
+  el.addEventListener("change", () => { manageDirty = true; });
+});
+$("refreshBtn").onclick = loadData;
+$("dateLabelBtn").onclick = ()=> $("datePicker").click();
+$("datePicker").onchange = ()=>{ currentDate = $("datePicker").value; renderAll(); };
+$("prevDay").onclick = ()=>{ const d = new Date(currentDate+"T12:00:00"); d.setDate(d.getDate()-1); currentDate = d.toISOString().slice(0,10); renderAll(); };
+$("nextDay").onclick = ()=>{ const d = new Date(currentDate+"T12:00:00"); d.setDate(d.getDate()+1); currentDate = d.toISOString().slice(0,10); renderAll(); };
+$("repPillBtn").onclick = ()=>{
+  const agents = getActiveAgents();
+  const vals = ["all", ...agents.map(agentIdOf).filter(Boolean)];
+  const cur = vals.indexOf(selectedAgentId);
+  selectedAgentId = vals[(cur + 1) % vals.length];
+  currentRepFilter = "all";
+  const agent = findAgentById(selectedAgentId);
+  $("repPillLabel").textContent = selectedAgentId === "all" ? "Все" : (agent?.name || selectedAgentId);
+  renderAll();
+};
+$("visitSheet").onclick = e=>{ if(e.target===$("visitSheet")) closeSheet(); };
+["sortBy","paymentFilter","statusFilter"].forEach(id=>{ $(id).onchange = renderVisits; });
+["rangeProducts","prodSort"].forEach(id => { if ($(id)) $(id).onchange = renderProducts; });
+["rangeReps","repSort"].forEach(id => { if ($(id)) $(id).onchange = renderReps; });
+["rangeStores","storeSort"].forEach(id => { if ($(id)) $(id).onchange = renderStoresAnalytics; });
+["rangeLosses"].forEach(id => { if ($(id)) $(id).onchange = renderLosses; });
+["rangeTrend"].forEach(id => { if ($(id)) $(id).onchange = renderTrend; });
+document.querySelectorAll(".analytics-tab").forEach(btn => {
+  if (!btn.dataset.analytics) return; // не трогаем кнопки без data-analytics (напр. agentSaveBtn если вдруг класс вернётся)
+  btn.onclick = () => setAnalyticsPanel(btn.dataset.analytics);
+});
+document.querySelectorAll(".manage-tab").forEach(btn => {
+  btn.onclick = () => setManagePanel(btn.dataset.manage);
+});
+
+let touchY=0;
+$("sheetInner").addEventListener("touchstart",e=>{touchY=e.touches[0].clientY;},{passive:true});
+$("sheetInner").addEventListener("touchmove",e=>{
+  if($("sheetInner").scrollTop===0&&e.touches[0].clientY-touchY>60) closeSheet();
+},{passive:true});
+
+async function renderAgents() {
+  await renderAgentsManagement();
+}
+
+function initAdmin() {
+  loadData().then(() => {
+    renderAgents();
+  });
+}
+
+loadData();
+setInterval(() => {
+  if (canAutoRefresh()) loadData();
+}, 30000);
+
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('UNHANDLED PROMISE REJECTION:', e.reason);
+});
+</script>
+</body>
+</html>
+
+
+

@@ -704,9 +704,9 @@ textarea {
   <div class="header-left">
     <div class="logo-wrap">
       <img src="logo.png" class="logo-img" alt="logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="display:block">
-      <span style="display:none;font-size:18px;">🔥</span>
+      <span style="display:none;font-size:12px;font-weight:900;">CRM</span>
     </div>
-    <span class="header-title">TimurOFF 🔥 Admin</span>
+    <span class="header-title">TimurOFF Admin</span>
   </div>
   <div class="header-right">
     <span class="sync-dot" id="syncDot"></span>
@@ -1221,7 +1221,7 @@ function isFlatStockMap(stock) {
 async function loadProductsFromCloud() {
   try {
     const r = await fetch(
-      PRODUCTS_URL + "?select=id,name,price,cost,is_active,sort_order,category&order=sort_order.asc,name.asc",
+      PRODUCTS_URL + "?select=id,name,price,cost,is_active,sort_order,category&is_active=eq.true&deleted_at=is.null&order=sort_order.asc,name.asc",
       { headers: SUPA_HEAD }
     );
     if (!r.ok) throw new Error(await r.text());
@@ -1252,7 +1252,7 @@ function normalizeDB(raw) {
     agents: Array.isArray(src.agents) ? src.agents.map(normalizeAgentRow) : [],
     stock: src.stock && typeof src.stock === "object" ? src.stock : {},
     visits: Array.isArray(src.visits) ? src.visits : [],
-    cons: Array.isArray(src.cons) ? src.cons : [],
+    cons: [],
     shiftHistory: Array.isArray(src.shiftHistory) ? src.shiftHistory : [],
     adjustments: Array.isArray(src.adjustments) ? src.adjustments : [],
     _lastUpdated: src._lastUpdated || new Date().toISOString()
@@ -1401,7 +1401,7 @@ async function saveAdminData() {
   const now = new Date().toISOString();
   DB._lastUpdated = now;
   const cloudDB = {
-    cons: DB.cons || [],
+    cons: [],
     shiftHistory: DB.shiftHistory || [],
     adjustments: DB.adjustments || [],
     _lastUpdated: now
@@ -1449,7 +1449,7 @@ async function loadStoresFromCloud() {
 async function loadVisitsFromCloud() {
   try {
     const r = await fetch(
-      VISITS_URL + "?select=*&order=date.desc",
+      VISITS_URL + "?deleted_at=is.null&select=*&order=date.desc",
       { headers: SUPA_HEAD }
     );
     if (!r.ok) throw new Error(await r.text());
@@ -1478,7 +1478,7 @@ async function loadVisitsFromCloud() {
 async function loadStockFromCloud() {
   try {
     const r = await fetch(
-      STOCK_URL + "?select=agent_id,product_id,quantity",
+      STOCK_URL + "?deleted_at=is.null&select=agent_id,product_id,quantity",
       { headers: SUPA_HEAD }
     );
     if (!r.ok) throw new Error(await r.text());
@@ -1505,7 +1505,7 @@ async function loadStockFromCloud() {
 async function loadShiftsFromCloud() {
   try {
     const r = await fetch(
-      SHIFTS_URL + "?select=*&order=work_date.desc",
+      SHIFTS_URL + "?deleted_at=is.null&select=*&order=work_date.desc",
       { headers: SUPA_HEAD }
     );
     if (!r.ok) throw new Error(await r.text());
@@ -1611,12 +1611,12 @@ async function loadData() {
       }
       const cloudData = row?.data && typeof row.data === "object" ? row.data : {};
       const appData = migrateDB(normalizeDB(cloudData));
-      DB.cons = appData.cons || [];
+      DB.cons = [];
       DB.shiftHistory = appData.shiftHistory || [];
       DB.adjustments = appData.adjustments || [];
     } catch (e) {
       console.error("app_state load error:", e);
-      DB.cons = DB.cons || [];
+      DB.cons = [];
       DB.shiftHistory = DB.shiftHistory || [];
       DB.adjustments = DB.adjustments || [];
     }
@@ -1632,11 +1632,10 @@ async function loadData() {
       const debtsCount = await loadDebtsFromCloud();
       if (debtsCount > 0) {
         console.log("DB.cons loaded from debts:", debtsCount);
-      } else {
-        console.warn("debts empty, using app_state cons fallback");
       }
     } catch (e) {
-      console.error("loadDebtsFromCloud error, using app_state fallback:", e);
+      DB.cons = [];
+      console.error("loadDebtsFromCloud error:", e);
     }
     const failed = results.filter(r => r.status === "rejected");
     if (failed.length) {
@@ -1693,7 +1692,7 @@ function getStockForDate(date, agentId = selectedAgentId) {
 }
 
 function getActualStockSummary(date, agentId = selectedAgentId) {
-  const stockStart = getStockForDate(date, agentId);
+  const liveStock = getStockForDate(date, agentId);
   const visits = DB.visits.filter(v => {
     if ((v.date || "") !== date) return false;
     if (v.status !== "Посещено") return false;
@@ -1704,7 +1703,8 @@ function getActualStockSummary(date, agentId = selectedAgentId) {
   let soldQty = 0, soldSum = 0, exchQty = 0, exchSum = 0, bonusQty = 0;
   let leftoverQty = 0, leftoverSum = 0, outQty = 0;
   PRODUCTS.forEach(p => {
-    byProduct[p.id] = { start: Number(stockStart[p.id]) || 0, ship: 0, exchange: 0, bonus: 0, out: 0, current: 0 };
+    const current = Number(liveStock[p.id]) || 0;
+    byProduct[p.id] = { start: current, ship: 0, exchange: 0, bonus: 0, out: 0, current };
   });
   visits.forEach(v => {
     PRODUCTS.forEach(p => {
@@ -1725,7 +1725,6 @@ function getActualStockSummary(date, agentId = selectedAgentId) {
   PRODUCTS.forEach(p => {
     const row = byProduct[p.id];
     row.out = row.ship + row.exchange + row.bonus;
-    row.current = row.start - row.out;
     outQty += row.out;
     leftoverQty += row.current;
     leftoverSum += row.current * p.price;
@@ -1734,10 +1733,7 @@ function getActualStockSummary(date, agentId = selectedAgentId) {
 }
 
 function getShiftSummary(date) {
-  const summary = getActualStockSummary(date);
-  if (summary.leftoverQty || summary.outQty || summary.soldQty || summary.exchQty || summary.bonusQty) return summary;
-  const sh = DB.shiftHistory.filter(isSelectedAgent).find(s=>s.date===date);
-  return sh?.summary || summary;
+  return getActualStockSummary(date);
 }
 
 function isoToDate(s) { return new Date((s || "").slice(0,10) + "T12:00:00"); }
@@ -1870,7 +1866,8 @@ async function createAgent() {
     const phone    = ($('agentPhone')?.value || '').trim();
     const login    = loginEl.value.trim();
     const password = pinEl.value.trim();
-    const role     = $('agentRole')?.value || 'agent';
+    const roleValue = $('agentRole')?.value || 'agent';
+    const role     = roleValue === 'admin' ? 'admin' : 'agent';
     if (!login || !password) { alert('Заполни логин и пароль'); return; }
     const exists = DB.agents.some(a => String(a.login || "").trim().toLowerCase() === login.toLowerCase());
     if (exists) {
@@ -1980,7 +1977,8 @@ async function updateAgent(agentId) {
     const phone = $('agentPhone').value.trim();
     const login = $('agentLogin').value.trim();
     const password = $('agentPin').value.trim();
-    const role = $('agentRole').value || 'agent';
+    const roleValue = $('agentRole').value || 'agent';
+    const role = roleValue === 'admin' ? 'admin' : 'agent';
     if (!name) { setStatus("ok"); alert('Введите имя торгового'); return; }
     if (!login) { setStatus("ok"); alert('Введите логин'); return; }
     const body = {
@@ -2015,28 +2013,37 @@ async function updateAgent(agentId) {
   }
 }
 
-async function deactivateAgent(agentId) {
+async function setAgentActive(agentId, isActive) {
   try {
     setStatus("loading");
-    if (!confirm('Отключить торгового?')) { setStatus("ok"); return; }
+    if (!confirm(isActive ? 'Включить торгового?' : 'Отключить торгового?')) { setStatus("ok"); return; }
     const r = await fetch(AGENTS_URL + "?id=eq." + encodeURIComponent(agentId), {
       method: 'PATCH',
       headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: 'return=minimal' },
-      body: JSON.stringify({ is_active: false, updated_at: new Date().toISOString() })
+      body: JSON.stringify({ is_active: isActive, updated_at: new Date().toISOString() })
     });
     if (!r.ok) {
       const txt = await r.text();
-      console.error('deactivateAgent error:', txt);
+      console.error('setAgentActive error:', txt);
       throw new Error(txt);
     }
+    if (isActive) await ensureStockRowsForAgent(agentId);
     await loadData();
     setStatus("ok");
-    alert('Торговый отключён');
+    alert(isActive ? 'Торговый включён' : 'Торговый отключён');
   } catch(e) {
     setStatus("err");
-    console.error('deactivateAgent ошибка:', e);
-    alert('Ошибка отключения торгового');
+    console.error('setAgentActive ошибка:', e);
+    alert('Ошибка изменения статуса торгового');
   }
+}
+
+async function deactivateAgent(agentId) {
+  return setAgentActive(agentId, false);
+}
+
+async function activateAgent(agentId) {
+  return setAgentActive(agentId, true);
 }
 
 async function renderAgentsManagement() {
@@ -2068,7 +2075,7 @@ async function renderAgentsManagement() {
         </div>
         <div class="filter-row" style="padding:10px 0 0">
           <button class="analytics-tab" type="button" data-edit-agent="${esc(a.id)}">Изменить</button>
-          <button class="analytics-tab" type="button" data-off-agent="${esc(a.id)}" ${a.is_active === false ? 'disabled' : ''}>Отключить</button>
+          <button class="analytics-tab" type="button" data-toggle-agent="${esc(a.id)}" data-agent-active="${a.is_active === false ? '1' : '0'}">${a.is_active === false ? 'Включить' : 'Отключить'}</button>
         </div>
       </div>`;
     }).join('') : '<div class="empty-state"><div class="icon">👤</div>Торговых пока нет</div>';
@@ -2077,7 +2084,7 @@ async function renderAgentsManagement() {
     list.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>Не удалось загрузить торговых</div>';
   }
   list.querySelectorAll('[data-edit-agent]').forEach(btn => { btn.onclick = () => updateAgent(btn.dataset.editAgent); });
-  list.querySelectorAll('[data-off-agent]').forEach(btn => { btn.onclick = () => deactivateAgent(btn.dataset.offAgent); });
+  list.querySelectorAll('[data-toggle-agent]').forEach(btn => { btn.onclick = () => setAgentActive(btn.dataset.toggleAgent, btn.dataset.agentActive === '1'); });
 }
 function renderOverview() {
   const date = currentDate;
@@ -2109,7 +2116,7 @@ function renderOverview() {
     <div class="stat-block metric-card clickable" data-breakdown="debtPay"><div class="stat-lbl">💚 Погашение долгов</div><div class="stat-val green">${money(debtPay)}</div></div>
     <div class="stat-block metric-card clickable" data-breakdown="cons"><div class="stat-lbl">📝 Консигнация</div><div class="stat-val orange">${money(cons)}</div></div>
     <div class="stat-block metric-card"><div class="stat-lbl">✅ Посещено</div><div class="stat-val green">${visited.length}</div></div>
-    <div class="stat-block metric-card"><div class="stat-lbl">📦 Остаток товара</div><div class="stat-val">${summary?.leftoverQty||0} шт</div><div class="stat-lbl">${summary ? `${summary.leftoverQty + summary.outQty} → -${summary.outQty}` : ""}</div></div>
+    <div class="stat-block metric-card"><div class="stat-lbl">📦 Остаток товара</div><div class="stat-val">${summary?.leftoverQty||0} шт</div><div class="stat-lbl">Расход за день: ${summary?.outQty || 0} шт</div></div>
     <div class="stat-block metric-card"><div class="stat-lbl">🔄 Обмен</div><div class="stat-val orange">${exchangeQty} шт</div></div>
     <div class="stat-block metric-card"><div class="stat-lbl">🎁 Бонус</div><div class="stat-val purple">${bonusQty} шт</div></div>
   `;

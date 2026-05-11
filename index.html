@@ -706,7 +706,7 @@ body.auth-booting #loginScreen { display: none; }
     <div style="display:flex; align-items:center; gap:10px;">
       <div style="background:var(--green); width:38px; height:38px; border-radius:12px; display:none; align-items:center; justify-content:center; font-weight:900;">CRM</div>
       <div>
-        <div class="header-title">TimurOFF Алга🔥</div>
+        <div class="header-title">TimurOFF</div>
         <div class="header-sub" id="headerSub">загрузка...</div>
       </div>
     </div>
@@ -1148,7 +1148,7 @@ function isFlatStockMap(stock) {
 async function loadProductsFromCloud() {
   try {
     const r = await fetch(
-      PRODUCTS_URL + "?select=id,name,price,cost,is_active,sort_order,category&order=sort_order.asc,name.asc",
+      PRODUCTS_URL + "?select=id,name,price,cost,is_active,sort_order,category&is_active=eq.true&deleted_at=is.null&order=sort_order.asc,name.asc",
       { headers: SUPA_HEAD }
     );
     if (!r.ok) throw new Error(await r.text());
@@ -1223,7 +1223,7 @@ function normalizeDB(raw) {
     agents: Array.isArray(src.agents) ? src.agents.map(normalizeAgentRow) : [],
     stock: src.stock && typeof src.stock === "object" ? src.stock : {},
     visits: Array.isArray(src.visits) ? src.visits : [],
-    cons: Array.isArray(src.cons) ? src.cons : [],
+    cons: [],
     shiftHistory: Array.isArray(src.shiftHistory) ? src.shiftHistory : [],
     adjustments: Array.isArray(src.adjustments) ? src.adjustments : [],
     _lastUpdated: src._lastUpdated || new Date().toISOString()
@@ -1423,7 +1423,7 @@ async function getOpenShift(agentId) {
   if (!agentId) return null;
   try {
     const r = await fetch(
-      SHIFTS_URL + "?agent_id=eq." + encodeURIComponent(agentId) + "&status=eq.open&select=*",
+      SHIFTS_URL + "?agent_id=eq." + encodeURIComponent(agentId) + "&status=eq.open&deleted_at=is.null&select=*",
       { headers: SUPA_HEAD }
     );
     if (!r.ok) throw new Error(await r.text());
@@ -1478,6 +1478,7 @@ async function getShiftByDate(agentId, workDate) {
       SHIFTS_URL +
         "?agent_id=eq." + encodeURIComponent(agentId) +
         "&work_date=eq." + encodeURIComponent(workDate) +
+        "&deleted_at=is.null" +
         "&select=*&limit=1",
       { headers: SUPA_HEAD }
     );
@@ -1576,7 +1577,7 @@ async function ensureStockRowsForCurrentAgent() {
       return;
     }
     const current = await fetch(
-      STOCK_URL + "?agent_id=eq." + encodeURIComponent(CURRENT_AGENT_ID) + "&select=product_id",
+      STOCK_URL + "?agent_id=eq." + encodeURIComponent(CURRENT_AGENT_ID) + "&deleted_at=is.null&select=product_id",
       { headers: SUPA_HEAD }
     );
     if (!current.ok) throw new Error(await current.text());
@@ -1614,7 +1615,7 @@ async function loadStockFromCloud() {
   PRODUCTS.forEach(p => { stock[p.id] = 0; });
   try {
     const r = await fetch(
-      STOCK_URL + "?agent_id=eq." + encodeURIComponent(CURRENT_AGENT_ID) + "&select=product_id,quantity",
+      STOCK_URL + "?agent_id=eq." + encodeURIComponent(CURRENT_AGENT_ID) + "&deleted_at=is.null&select=product_id,quantity",
       { headers: SUPA_HEAD }
     );
     if (!r.ok) throw new Error(await r.text());
@@ -1698,7 +1699,7 @@ async function loadVisitsFromCloud() {
   if (!CURRENT_AGENT_ID) return;
   try {
     const r = await fetch(
-      VISITS_URL + "?agent_id=eq." + encodeURIComponent(CURRENT_AGENT_ID) + "&select=*&order=date.desc",
+      VISITS_URL + "?agent_id=eq." + encodeURIComponent(CURRENT_AGENT_ID) + "&deleted_at=is.null&select=*&order=date.desc",
       { headers: SUPA_HEAD }
     );
     if (!r.ok) throw new Error(await r.text());
@@ -1870,6 +1871,7 @@ async function pushCloudWithRetry(retries = 2) {
     try {
       DB._lastUpdated = new Date().toISOString();
       const cloudDB = { ...DB };
+      cloudDB.cons = [];
       delete cloudDB.stock;
       delete cloudDB.stores;
       delete cloudDB.visits;
@@ -1932,9 +1934,9 @@ async function pullCloud(initial = false) {
     try {
       const debtsCount = await loadDebtsFromCloud();
       if (debtsCount > 0) console.log("DB.cons loaded from debts:", debtsCount);
-      else console.warn("debts empty, using app_state cons fallback");
     } catch (e) {
-      console.error("loadDebtsFromCloud error, using app_state fallback:", e);
+      DB.cons = [];
+      console.error("loadDebtsFromCloud error:", e);
     }
     saveLocal();
     if (migrationChanged) {
@@ -2006,10 +2008,39 @@ function calcUsed(date, excludeId = null) {
 }
 function calcRem(date, excludeId = null) {
   const rem = {};
+  const stockItems = currentStockItems(date);
   PRODUCTS.forEach(p => {
-    rem[p.id] = Number(DB.stock[p.id] || 0);
+    rem[p.id] = Number(stockItems[p.id] || 0);
   });
   return rem;
+}
+function currentStockItems(date = getDate()) {
+  if (!DB.stock || typeof DB.stock !== "object" || Array.isArray(DB.stock)) DB.stock = {};
+  if (isFlatStockMap(DB.stock) || !Object.keys(DB.stock).length) return DB.stock;
+  return getStockForAgent(date).items || {};
+}
+function itemUsedQty(item) {
+  return (Number(item?.ship) || 0) + (Number(item?.exchange) || 0) + (Number(item?.bonus) || 0);
+}
+function productUsedFromItems(items, productId) {
+  return itemUsedQty((items || {})[productId] || {});
+}
+function productUsedByVisit(visit, productId) {
+  if (!visit || visit.status !== "Посещено") return 0;
+  return productUsedFromItems(visit.items || {}, productId);
+}
+function buildNextStockAfterVisit(date, items, existing, nextStatus) {
+  const stockItems = currentStockItems(date);
+  const nextStock = {};
+  for (const p of PRODUCTS) {
+    const usedNew = nextStatus === "Посещено" ? productUsedFromItems(items, p.id) : 0;
+    const usedOld = productUsedByVisit(existing, p.id);
+    const currentStock = Number(stockItems[p.id] || 0);
+    const nextVal = currentStock + usedOld - usedNew;
+    if (nextVal < 0) return { ok: false, product: p, nextStock };
+    nextStock[p.id] = nextVal;
+  }
+  return { ok: true, nextStock };
 }
 function shiftStats(date) {
   const visits = getCurrentVisits().filter(v => v.date === date && v.status === "Посещено");
@@ -2035,6 +2066,7 @@ function calcVisitSum() {
   const d = getDate();
   const editInfo = editVisitId ? findVisitById(editVisitId) : null;
   const isArchiveEdit = editInfo?.source === 'archive';
+  const status = $("visitStatus")?.value || visitDraft.status || "Посещено";
   const rem = isArchiveEdit ? {} : calcRem(d);
   
   let total = 0;
@@ -2053,7 +2085,9 @@ function calcVisitSum() {
     const sumSpan = document.getElementById(`prod-sum-${p.id}`);
     if (sumSpan) sumSpan.textContent = money(prodTotal);
     total += prodTotal;
-    if (!isArchiveEdit && sh + ex + bo > rem[p.id]) errors.push(`${p.name}: доступно ${rem[p.id]}, нужно ${sh + ex + bo}`);
+    const available = (rem[p.id] || 0) + (editInfo?.source === 'active' ? productUsedByVisit(editInfo.visit, p.id) : 0);
+    const needed = status === "Посещено" ? sh + ex + bo : 0;
+    if (!isArchiveEdit && needed > available) errors.push(`${p.name}: доступно ${available}, нужно ${needed}`);
   });
   
   total = Math.round(total);
@@ -2305,13 +2339,19 @@ async function saveVisit() {
     if (hasError) return;
     total = Math.round(total);
     
+    let nextStock = null;
     if (!isEditingArchive) {
-      const rem = calcRem(d, existing?.id);
-      for (const p of PRODUCTS) {
-        const it = items[p.id] || {};
-        const sh = it.ship || 0, ex = it.exchange || 0, bo = it.bonus || 0;
-        if (sh + ex + bo > (rem[p.id] || 0)) { showToast(`${p.name}: недостаточно остатков`, true); return; }
+      const stockCalc = buildNextStockAfterVisit(d, items, existing, visitDraft.status);
+      if (!stockCalc.ok) {
+        showToast(`Недостаточно остатка по товару: ${stockCalc.product?.name || "товар"}`, true);
+        return;
       }
+      nextStock = stockCalc.nextStock;
+    }
+
+    if (visitDraft.status === "Посещено" && !confirm("Ты заполнил обмены и бонусы?")) {
+      showToast("Сохранение отменено. Заполни обмены/бонусы и нажми сохранить снова.");
+      return;
     }
     
     const debtPayAmount = Math.max(0, Math.round(Number(visitDraft.debtPayment) || 0));
@@ -2418,7 +2458,7 @@ async function saveVisit() {
     // --- ШАГ 2: сохранить визит ---
     try {
       visitSavedToCloud = await saveVisitToCloud(visit);
-      if (!visitSavedToCloud) throw new Error("saveVisitToCloud returned false");
+      if (!visitSavedToCloud) throw new Error("visit cloud save failed");
     } catch (visitErr) {
       console.error("saveVisit visit step error:", visitErr);
       // Откатываем долг если создали в этом визите
@@ -2430,25 +2470,8 @@ async function saveVisit() {
     }
 
     // --- ШАГ 3: сохранить остатки ---
-    // Правильная формула: delta = usedOld - usedNew, nextStock = currentStock + delta
-    // ship + exchange + bonus — все три уменьшают физический остаток.
-    let nextStock = null;
-    if (!isEditingArchive) {
-      nextStock = {};
-      // Валидация и расчёт
-      for (const p of PRODUCTS) {
-        const itNew = items[p.id] || {};
-        const usedNew = (Number(itNew.ship) || 0) + (Number(itNew.exchange) || 0) + (Number(itNew.bonus) || 0);
-        const itOld = existing ? ((existing.items || {})[p.id] || {}) : {};
-        const usedOld = existing ? ((Number(itOld.ship) || 0) + (Number(itOld.exchange) || 0) + (Number(itOld.bonus) || 0)) : 0;
-        const currentStock = Number(DB.stock[p.id] || 0);
-        const nextVal = currentStock + usedOld - usedNew;
-        if (nextVal < 0) {
-          showToast(`Недостаточно остатка по товару: ${p.name}`, true);
-          return;
-        }
-        nextStock[p.id] = nextVal;
-      }
+    // nextStock заранее посчитан от live DB.stock: currentStock + oldUsed - newUsed.
+    if (!isEditingArchive && nextStock) {
       const stockSaved = await saveStockToCloud(nextStock);
       if (!stockSaved) {
         // Откатываем визит и долг
@@ -2601,7 +2624,7 @@ function renderVisitProducts() {
 
   box.innerHTML = categoryProducts.length ? categoryProducts.map(p => {
     const it = visitDraft.items[p.id] || {};
-    const avail = rem[p.id] || 0;
+    const avail = (rem[p.id] || 0) + (editInfo?.source === 'active' ? productUsedByVisit(editInfo.visit, p.id) : 0);
     let badgeClass = "avail-badge blue";
     let badgeText = `Доступно: ${avail} шт`;
     

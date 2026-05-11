@@ -3521,228 +3521,212 @@ async function runAi() {
   const btn = $("runAiBtn");
   const result = $("aiResult");
   const runText = "\u{1F916} \u0417\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u0430\u043d\u0430\u043b\u0438\u0437";
-  const thinkingText = "\u{1F916} \u0414\u0443\u043c\u0430\u044e...";
-  const oldText = btn ? btn.textContent : runText;
+  const composingText = "\u{1F916} \u0421\u043e\u0441\u0442\u0430\u0432\u043b\u044f\u044e \u043f\u043b\u0430\u043d...";
   const todayDate = getDate();
   const toNum = value => Number(value) || 0;
   const localDate = date => new Date(date + "T12:00:00");
   const dateKey = date => date.toISOString().slice(0, 10);
-  const addDays = (date, days) => {
-    const next = new Date(date);
-    next.setDate(next.getDate() + days);
-    return next;
-  };
-  const uniqDates = dates => [...new Set(dates)];
+  const addDays = (date, days) => { const next = new Date(date); next.setDate(next.getDate() + days); return next; };
+  const daysBetween = (fromDate, toDate) => Math.max(0, Math.round((localDate(toDate) - localDate(fromDate)) / 86400000));
+  const visitProducts = visits => productsForVisits(visits || []);
+  const visitItems = (visit, productId) => (visit.items || {})[productId] || {};
+  const successfulVisits = visits => (visits || []).filter(v => v.status === "\u041f\u043e\u0441\u0435\u0449\u0435\u043d\u043e");
   const storeName = id => {
     const store = (DB.stores || []).find(s => s.id === id);
     return store ? store.name : id || "\u0411\u0435\u0437 \u043c\u0430\u0433\u0430\u0437\u0438\u043d\u0430";
   };
-  const visitProducts = visits => productsForVisits(visits || []);
-  const visitItems = (visit, productId) => (visit.items || {})[productId] || {};
-  const successfulVisits = visits => (visits || []).filter(v => v.status === "\u041f\u043e\u0441\u0435\u0449\u0435\u043d\u043e");
-  const sumVisitProducts = visits => {
-    const products = visitProducts(visits);
-    const totals = {};
-    products.forEach(p => {
-      totals[p.id] = { id: p.id, name: p.name, ship: 0, exchange: 0, bonus: 0, total: 0 };
-    });
-    (visits || []).forEach(v => {
-      products.forEach(p => {
-        const item = visitItems(v, p.id);
-        totals[p.id].ship += toNum(item.ship);
-        totals[p.id].exchange += toNum(item.exchange);
-        totals[p.id].bonus += toNum(item.bonus);
-        totals[p.id].total += toNum(item.ship) * toNum(p.price);
-      });
-    });
-    return Object.values(totals);
-  };
-  const paymentSum = (visits, payment) => successfulVisits(visits)
-    .filter(v => v.payment === payment)
-    .reduce((sum, v) => sum + toNum(v.total), 0);
-  const debtPaymentsByDate = date => (DB.cons || []).reduce((sum, debt) => {
-    if (!isCurrentAgent(debt)) return sum;
-    return sum + (debt.payments || [])
-      .filter(p => p.date === date && isCurrentAgentPayment(p))
-      .reduce((part, p) => part + toNum(p.amount), 0);
-  }, 0);
-  const datesBack = days => {
-    const base = localDate(todayDate);
-    return Array.from({ length: days }, (_, index) => dateKey(addDays(base, index - days + 1)));
-  };
+  const datesBack = days => Array.from({ length: days }, (_, index) => dateKey(addDays(localDate(todayDate), index - days + 1)));
   const visitsByDates = dates => {
     const set = new Set(dates);
     return getAllVisits().filter(v => set.has(v.date));
   };
+  const sumProductRows = visits => {
+    const products = visitProducts(visits);
+    const totals = {};
+    products.forEach(p => { totals[p.id] = { productId: p.id, name: p.name, ship: 0, exchange: 0, bonus: 0, sales: 0 }; });
+    (visits || []).forEach(v => {
+      products.forEach(p => {
+        const item = visitItems(v, p.id);
+        const ship = toNum(item.ship);
+        totals[p.id].ship += ship;
+        totals[p.id].exchange += toNum(item.exchange);
+        totals[p.id].bonus += toNum(item.bonus);
+        totals[p.id].sales += ship * toNum(p.price);
+      });
+    });
+    return Object.values(totals).filter(p => p.ship || p.exchange || p.bonus || p.sales);
+  };
+  const productTotalsMap = visits => {
+    const map = {};
+    sumProductRows(visits).forEach(row => { map[row.productId] = row; });
+    return map;
+  };
+  const paymentSum = (visits, payment) => successfulVisits(visits).filter(v => v.payment === payment).reduce((sum, v) => sum + toNum(v.total), 0);
+  const debtPaymentsByDate = date => (DB.cons || []).reduce((sum, debt) => {
+    if (!isCurrentAgent(debt)) return sum;
+    return sum + (debt.payments || []).filter(p => p.date === date && isCurrentAgentPayment(p)).reduce((part, p) => part + toNum(p.amount), 0);
+  }, 0);
 
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = thinkingText;
-  }
-  if (result) {
-    result.innerHTML = `<div class="ai-card">\u0418\u0418 \u0430\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u0443\u0435\u0442 \u043f\u0440\u043e\u0434\u0430\u0436\u0438, \u043e\u0441\u0442\u0430\u0442\u043a\u0438, \u043e\u0431\u043c\u0435\u043d\u044b \u0438 \u0434\u043e\u043b\u0433\u0438...</div>`;
-  }
+  if (btn) { btn.disabled = true; btn.textContent = composingText; }
+  if (result) result.innerHTML = `<div class="ai-card">\u0418\u0418 \u0441\u043e\u0441\u0442\u0430\u0432\u043b\u044f\u0435\u0442 \u043f\u0440\u0430\u043a\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u043f\u043b\u0430\u043d...</div>`;
 
   try {
     const allVisits = getAllVisits();
     const allSuccessful = successfulVisits(allVisits);
     const todayVisits = getCurrentVisits().filter(v => v.date === todayDate);
     const todayDone = successfulVisits(todayVisits);
-    const todayProducts = sumVisitProducts(todayDone);
+    const todayProducts = sumProductRows(todayDone);
+    const todayDebtPayments = Math.max(todayDone.reduce((sum, v) => sum + toNum(v.debtPayment), 0), debtPaymentsByDate(todayDate));
     const todayStats = {
       date: todayDate,
-      visits: todayVisits.length,
-      successfulVisits: todayDone.length,
+      visitedStores: new Set(todayDone.map(v => v.storeId).filter(Boolean)).size,
       sales: todayDone.reduce((sum, v) => sum + toNum(v.total), 0),
       cash: paymentSum(todayVisits, "cash"),
       kaspi: paymentSum(todayVisits, "kaspi"),
       consignment: paymentSum(todayVisits, "cons"),
       exchangeQty: todayProducts.reduce((sum, p) => sum + p.exchange, 0),
       bonusQty: todayProducts.reduce((sum, p) => sum + p.bonus, 0),
+      debtPayments: todayDebtPayments,
       products: todayProducts
     };
 
     const last7Dates = datesBack(7);
-    const last7Stats = last7Dates.map(date => {
-      const dayVisits = getCurrentVisits().filter(v => v.date === date);
-      const dayDone = successfulVisits(dayVisits);
-      const dayProducts = sumVisitProducts(dayDone);
+    const last28Dates = datesBack(28);
+    const last7Visits = successfulVisits(visitsByDates(last7Dates));
+    const last28Visits = successfulVisits(visitsByDates(last28Dates));
+    const last7ProductMap = productTotalsMap(last7Visits);
+    const last28ProductMap = productTotalsMap(last28Visits);
+    const stockItems = currentStockItems(todayDate) || {};
+    const productCatalog = (PRODUCTS && PRODUCTS.length ? PRODUCTS : ALL_PRODUCTS);
+    const activeStores = getActiveStores();
+    const averageStoreSales28 = activeStores.length ? last28Visits.reduce((sum, v) => sum + toNum(v.total), 0) / activeStores.length : 0;
+
+    const riskRank = { high: 3, medium: 2, low: 1 };
+    const routePriorities = activeStores.map(store => {
+      const storeVisitsAll = allSuccessful.filter(v => v.storeId === store.id).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      const storeVisits28 = last28Visits.filter(v => v.storeId === store.id);
+      const lastVisitDate = storeVisitsAll[0]?.date || null;
+      const daysSinceLastVisit = lastVisitDate ? daysBetween(lastVisitDate, todayDate) : null;
+      const productRows = sumProductRows(storeVisits28);
+      const shipQtyLast28Days = productRows.reduce((sum, p) => sum + p.ship, 0);
+      const exchangeQtyLast28Days = productRows.reduce((sum, p) => sum + p.exchange, 0);
+      const bonusQtyLast28Days = productRows.reduce((sum, p) => sum + p.bonus, 0);
+      const salesLast28Days = storeVisits28.reduce((sum, v) => sum + toNum(v.total), 0);
+      const visitsLast28Days = storeVisits28.length;
+      const debtAmount = storeDebt(store.id);
+      const highExchange = exchangeQtyLast28Days >= 3 && shipQtyLast28Days > 0 && exchangeQtyLast28Days / shipQtyLast28Days >= 0.25;
+      const goodPoint = salesLast28Days > 0 && salesLast28Days >= averageStoreSales28;
+      const reasons = [];
+      if (debtAmount > 0) reasons.push("\u0435\u0441\u0442\u044c \u0434\u043e\u043b\u0433");
+      if (daysSinceLastVisit !== null && daysSinceLastVisit >= 3) reasons.push("\u0434\u0430\u0432\u043d\u043e \u043d\u0435 \u0431\u044b\u043b");
+      if (highExchange) reasons.push("\u0432\u044b\u0441\u043e\u043a\u0438\u0439 \u043e\u0431\u043c\u0435\u043d");
+      if (goodPoint) reasons.push("\u0445\u043e\u0440\u043e\u0448\u0430\u044f \u0442\u043e\u0447\u043a\u0430");
+      if (visitsLast28Days === 0) reasons.push("\u043d\u0435\u0442 \u0438\u0441\u0442\u043e\u0440\u0438\u0438");
+      const riskLevel = (debtAmount > 0 || (daysSinceLastVisit !== null && daysSinceLastVisit >= 3) || highExchange) ? "high" : (visitsLast28Days === 0 || goodPoint ? "medium" : "low");
+      return { storeId: store.id, name: store.name, daysSinceLastVisit, debtAmount, lastVisitDate, visitsLast28Days, salesLast28Days, averageSale: visitsLast28Days ? Math.round(salesLast28Days / visitsLast28Days) : 0, exchangeQtyLast28Days, bonusQtyLast28Days, riskLevel, reason: reasons.join(", ") || "\u0441\u0442\u0430\u0431\u0438\u043b\u044c\u043d\u043e" };
+    }).sort((a, b) => (riskRank[b.riskLevel] - riskRank[a.riskLevel]) || (b.debtAmount - a.debtAmount) || (b.salesLast28Days - a.salesLast28Days));
+
+    const productSignals = productCatalog.map(product => {
+      const p7 = last7ProductMap[product.id] || {};
+      const p28 = last28ProductMap[product.id] || {};
+      const shipLast7Days = toNum(p7.ship);
+      const shipLast28Days = toNum(p28.ship);
+      const exchangeLast28Days = toNum(p28.exchange);
+      const bonusLast28Days = toNum(p28.bonus);
+      const currentStock = toNum(stockItems[product.id]);
+      const exchangeRate = shipLast28Days > 0 ? exchangeLast28Days / shipLast28Days : 0;
+      let signal = "normal";
+      if (exchangeLast28Days >= 3 && exchangeRate >= 0.25) signal = "watch_exchange";
+      else if (shipLast7Days >= Math.max(3, (shipLast28Days / 4) * 1.15) && currentStock <= Math.max(2, shipLast7Days * 1.5)) signal = "push_more";
+      else if ((shipLast28Days === 0 && currentStock > 0) || currentStock > Math.max(6, shipLast7Days * 2, shipLast28Days / 2)) signal = "reduce";
+      return { productId: product.id, name: product.name, shipLast7Days, shipLast28Days, exchangeLast28Days, bonusLast28Days, currentStock, signal };
+    });
+
+    const sameWeekdayDates = [7, 14, 21, 28].map(days => dateKey(addDays(localDate(todayDate), -days)));
+    const sameWeekdayVisits = successfulVisits(visitsByDates(sameWeekdayDates));
+    const sameWeekdayProductRows = sumProductRows(sameWeekdayVisits);
+    const sameWeekday = {
+      dates: sameWeekdayDates,
+      totalSales: sameWeekdayVisits.reduce((sum, v) => sum + toNum(v.total), 0),
+      totalVisits: sameWeekdayVisits.length,
+      productSales: sameWeekdayProductRows.filter(p => p.ship > 0).map(p => ({ productId: p.productId, name: p.name, ship: p.ship, sales: p.sales })),
+      productExchange: sameWeekdayProductRows.filter(p => p.exchange > 0).map(p => ({ productId: p.productId, name: p.name, exchange: p.exchange }))
+    };
+    const last7Days = last7Dates.map(date => {
+      const dayVisits = successfulVisits(visitsByDates([date]));
+      const dayProducts = sumProductRows(dayVisits);
       return {
         date,
-        sales: dayDone.reduce((sum, v) => sum + toNum(v.total), 0),
+        sales: dayVisits.reduce((sum, v) => sum + toNum(v.total), 0),
         visits: dayVisits.length,
-        successfulVisits: dayDone.length,
         exchangeQty: dayProducts.reduce((sum, p) => sum + p.exchange, 0),
         bonusQty: dayProducts.reduce((sum, p) => sum + p.bonus, 0),
         consignment: paymentSum(dayVisits, "cons"),
         debtPayments: debtPaymentsByDate(date)
       };
     });
-
-    const last28Dates = datesBack(28);
-    const last28Visits = successfulVisits(visitsByDates(last28Dates));
-    const last28Products = sumVisitProducts(last28Visits).map(p => ({
-      id: p.id,
+    const stockSummary = productSignals.map(p => ({
+      productId: p.productId,
       name: p.name,
-      avgShip: Math.round((p.ship / 28) * 100) / 100,
-      avgExchange: Math.round((p.exchange / 28) * 100) / 100,
-      avgBonus: Math.round((p.bonus / 28) * 100) / 100,
-      totalShip: p.ship,
-      totalExchange: p.exchange,
-      totalBonus: p.bonus
+      currentStock: p.currentStock,
+      signal: p.signal
     }));
-    const stores28 = {};
-    last28Visits.forEach(v => {
-      if (!stores28[v.storeId]) {
-        stores28[v.storeId] = {
-          id: v.storeId,
-          name: storeName(v.storeId),
-          sales: 0,
-          visits: 0,
-          ship: 0,
-          exchange: 0,
-          consVisits: 0,
-          consAmount: 0
-        };
-      }
-      const row = stores28[v.storeId];
-      row.sales += toNum(v.total);
-      row.visits += 1;
-      if (v.payment === "cons") {
-        row.consVisits += 1;
-        row.consAmount += toNum(v.total);
-      }
-      visitProducts([v]).forEach(p => {
-        const item = visitItems(v, p.id);
-        row.ship += toNum(item.ship);
-        row.exchange += toNum(item.exchange);
-      });
-    });
-    const stockSummary = Object.entries(currentStockItems(todayDate) || {}).map(([productId, qty]) => {
-      const product = (ALL_PRODUCTS || PRODUCTS).find(p => p.id === productId) || { id: productId, name: productId };
-      return { id: productId, name: product.name, quantity: toNum(qty) };
-    }).sort((a, b) => b.quantity - a.quantity);
-    const last28Stats = {
+    const last28Days = {
       dateFrom: last28Dates[0],
       dateTo: last28Dates[last28Dates.length - 1],
-      productAverages: last28Products,
-      topStoresBySales: Object.values(stores28).sort((a, b) => b.sales - a.sales).slice(0, 10),
-      storesWithHighExchange: Object.values(stores28)
-        .filter(s => s.ship > 0)
-        .map(s => ({ ...s, exchangePercent: Math.round((s.exchange / s.ship) * 1000) / 10 }))
-        .sort((a, b) => b.exchangePercent - a.exchangePercent)
-        .slice(0, 10),
-      storesWithFrequentDebts: Object.values(stores28)
-        .filter(s => s.consVisits > 0 || s.consAmount > 0)
-        .sort((a, b) => (b.consVisits - a.consVisits) || (b.consAmount - a.consAmount))
-        .slice(0, 10),
-      productsOftenRemaining: stockSummary.filter(p => p.quantity > 0).slice(0, 10)
-    };
-
-    const sameWeekdayDates = uniqDates([7, 14, 21, 28].map(days => dateKey(addDays(localDate(todayDate), -days))));
-    const sameWeekdayVisits = successfulVisits(visitsByDates(sameWeekdayDates));
-    const sameWeekdayProducts = sumVisitProducts(sameWeekdayVisits);
-    const sameWeekdayStats = {
-      dates: sameWeekdayDates,
-      avgSales: Math.round(sameWeekdayVisits.reduce((sum, v) => sum + toNum(v.total), 0) / Math.max(sameWeekdayDates.length, 1)),
-      avgVisits: Math.round((sameWeekdayVisits.length / Math.max(sameWeekdayDates.length, 1)) * 100) / 100,
-      bestSellingProducts: [...sameWeekdayProducts].sort((a, b) => b.ship - a.ship).slice(0, 10),
-      mostExchangedProducts: [...sameWeekdayProducts].sort((a, b) => b.exchange - a.exchange).slice(0, 10)
+      routePriorities,
+      productSignals
     };
 
     const openDebts = getOpenDebts();
     const debtSummary = {
       openCount: openDebts.length,
       openAmount: openDebts.reduce((sum, debt) => sum + toNum(debt.amount), 0),
-      byStore: openDebts.map(debt => ({
-        id: debt.id,
-        storeId: debt.storeId,
-        storeName: storeName(debt.storeId),
-        amount: toNum(debt.amount),
-        date: debt.date
-      })).sort((a, b) => b.amount - a.amount)
+      byStore: openDebts.map(debt => ({ id: debt.id, storeId: debt.storeId, storeName: storeName(debt.storeId), amount: toNum(debt.amount), date: debt.date })).sort((a, b) => b.amount - a.amount)
     };
-    const dataNote = allSuccessful.length < 3
-      ? "\u0414\u0430\u043d\u043d\u044b\u0445 \u043c\u0430\u043b\u043e, \u0432\u044b\u0432\u043e\u0434\u044b \u043f\u0440\u0435\u0434\u0432\u0430\u0440\u0438\u0442\u0435\u043b\u044c\u043d\u044b\u0435."
+    const lowDataInstruction = allSuccessful.length < 3 || routePriorities.every(store => store.visitsLast28Days === 0)
+      ? "\u0415\u0441\u043b\u0438 \u0434\u0430\u043d\u043d\u044b\u0445 \u043c\u0430\u043b\u043e, \u0434\u0430\u0439 \u043f\u0440\u0435\u0434\u0432\u0430\u0440\u0438\u0442\u0435\u043b\u044c\u043d\u044b\u0439 \u043f\u043b\u0430\u043d \u0438 \u0441\u043a\u0430\u0436\u0438, \u043a\u0430\u043a\u0438\u0435 \u0434\u0430\u043d\u043d\u044b\u0435 \u043d\u0443\u0436\u043d\u043e \u0441\u043e\u0431\u0440\u0430\u0442\u044c."
       : "";
+    const instruction = [
+      "\u0421\u043e\u0441\u0442\u0430\u0432\u044c \u043f\u043b\u0430\u043d \u0440\u0430\u0431\u043e\u0442\u044b \u0442\u043e\u0440\u0433\u043e\u0432\u043e\u0433\u043e. \u041d\u0443\u0436\u043d\u044b \u043a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u044b\u0435 \u0440\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0430\u0446\u0438\u0438:",
+      "1) \u0432 \u043a\u0430\u043a\u0438\u0435 \u043c\u0430\u0433\u0430\u0437\u0438\u043d\u044b \u0437\u0430\u0439\u0442\u0438 \u0441\u0435\u0433\u043e\u0434\u043d\u044f/\u0437\u0430\u0432\u0442\u0440\u0430",
+      "2) \u043a\u0430\u043a\u0438\u0435 \u0442\u043e\u0432\u0430\u0440\u044b \u0430\u043a\u0442\u0438\u0432\u043d\u0435\u0435 \u043f\u0440\u0435\u0434\u043b\u0430\u0433\u0430\u0442\u044c",
+      "3) \u043a\u0430\u043a\u0438\u0435 \u0442\u043e\u0432\u0430\u0440\u044b \u043d\u0435 \u043f\u0435\u0440\u0435\u0433\u0440\u0443\u0436\u0430\u0442\u044c",
+      "4) \u0433\u0434\u0435 \u0434\u043e\u043b\u0433\u0438",
+      "5) \u0433\u0434\u0435 \u0432\u044b\u0441\u043e\u043a\u0438\u0439 \u043e\u0431\u043c\u0435\u043d",
+      "6) \u043a\u043e\u0440\u043e\u0442\u043a\u0438\u0439 \u043f\u043b\u0430\u043d \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 \u0431\u0435\u0437 \u0432\u043e\u0434\u044b.",
+      "\u041d\u0435 \u043f\u0438\u0448\u0438 \u043e\u0431\u0449\u0438\u0439 \u043e\u0442\u0447\u0451\u0442. \u041f\u0438\u0448\u0438 \u043a\u0430\u043a \u043f\u043e\u043c\u043e\u0449\u043d\u0438\u043a \u0442\u043e\u0440\u0433\u043e\u0432\u043e\u0433\u043e \u0432 \u043f\u043e\u043b\u0435.",
+      lowDataInstruction
+    ].filter(Boolean).join("\n");
 
     const response = await fetch(AI_WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "daily_sales_analysis",
-        agent: {
-          id: CURRENT_AGENT_ID,
-          name: CURRENT_AGENT_NAME
-        },
+        agent: { id: CURRENT_AGENT_ID, name: CURRENT_AGENT_NAME },
         date: getDate(),
         weekday: new Date(getDate()).toLocaleDateString("ru-RU", { weekday: "long" }),
         today: todayStats,
-        last7Days: last7Stats,
-        last28Days: last28Stats,
-        sameWeekdayLast4Weeks: sameWeekdayStats,
+        last7Days,
+        last28Days,
+        routePriorities,
+        productSignals,
+        sameWeekday,
+        sameWeekdayLast4Weeks: sameWeekday,
         stock: stockSummary,
         debts: debtSummary,
-        dataNote,
-        instruction: [
-          "\u0414\u0430\u0439 \u043a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u044b\u0439 \u0435\u0436\u0435\u0434\u043d\u0435\u0432\u043d\u044b\u0439 \u0430\u043d\u0430\u043b\u0438\u0437 \u043f\u0440\u043e\u0434\u0430\u0436 \u0431\u0435\u0437 \u043e\u0431\u0449\u0435\u0439 \u0431\u043e\u043b\u0442\u043e\u0432\u043d\u0438.",
-          "\u041f\u043e\u043a\u0430\u0436\u0438 \u0447\u0442\u043e \u0441\u0435\u0433\u043e\u0434\u043d\u044f \u0445\u043e\u0440\u043e\u0448\u043e \u0438 \u043f\u043b\u043e\u0445\u043e, \u043a\u0430\u043a\u0438\u0435 \u0442\u043e\u0432\u0430\u0440\u044b \u043f\u0435\u0440\u0435\u0433\u0440\u0443\u0436\u0430\u044e\u0442\u0441\u044f, \u043a\u0430\u043a\u0438\u0435 \u0441\u0442\u043e\u0438\u0442 \u0432\u0437\u044f\u0442\u044c \u0431\u043e\u043b\u044c\u0448\u0435 \u0437\u0430\u0432\u0442\u0440\u0430.",
-          "\u041e\u0442\u043c\u0435\u0442\u044c \u0432\u044b\u0441\u043e\u043a\u0438\u0439 \u043e\u0431\u043c\u0435\u043d, \u0434\u043e\u043b\u0433\u0438, \u043b\u0443\u0447\u0448\u0438\u0435 \u0438 \u043f\u0440\u043e\u0431\u043b\u0435\u043c\u043d\u044b\u0435 \u043c\u0430\u0433\u0430\u0437\u0438\u043d\u044b, \u0438 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f \u043d\u0430 \u0437\u0430\u0432\u0442\u0440\u0430.",
-          dataNote
-        ].filter(Boolean).join(" ")
+        instruction
       })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.ok !== true || !data.answer) throw new Error(data.error || "AI unavailable");
-    if (result) result.innerHTML = `<div class="ai-card">${esc(String(data.answer)).replace(/\n/g, "<br>")}</div>`;
+    if (result) result.innerHTML = `<div class="ai-card"><h4>\u{1F916} \u041f\u043b\u0430\u043d \u0442\u043e\u0440\u0433\u043e\u0432\u043e\u0433\u043e</h4><p>${esc(String(data.answer)).replace(/\n/g, "<br>")}</p></div>`;
   } catch (e) {
     console.error("runAi error:", e);
-    if (result) result.innerHTML = `<div class="ai-card">\u0418\u0418 \u0432\u0440\u0435\u043c\u0435\u043d\u043d\u043e \u043d\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439 \u043f\u043e\u0437\u0436\u0435.</div>`;
+    if (result) result.innerHTML = `<div class="ai-card">\u0418\u0418 \u0432\u0440\u0435\u043c\u0435\u043d\u043d\u043e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d</div>`;
   } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = oldText || runText;
-    }
+    if (btn) { btn.disabled = false; btn.textContent = runText; }
   }
 }
 function renderAnalytics() {

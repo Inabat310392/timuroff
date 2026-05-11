@@ -935,6 +935,7 @@ const PRODUCT_CATEGORIES = [
 // ============================================
 let DB = { stores: [], agents: [], stock: {}, visits: [], cons: [], shiftHistory: [], adjustments: [], _lastUpdated: new Date().toISOString() };
 let cloudReady = false, cloudTimer = null, isSaving = false, isPaying = false, isSyncing = false;
+let isSavingStore = false, isSavingVisit = false, isStartingShift = false, isClosingShift = false;
 let syncQueue = [];
 let syncPending = false;
 let visitDraft = { storeId: "", status: "Посещено", payment: "", comment: "", items: {} };
@@ -2235,11 +2236,16 @@ async function applyDebtPaymentFromVisit(storeId, visitId, date, payAmount) {
 }
 
 async function saveVisit() {
-  if (isSaving) return;
+  if (isSavingVisit || isSaving) {
+    showToast("Сохранение уже идёт...");
+    return;
+  }
   if (blockIfProductsNotCloud()) return;
   if (!visitDraft.items) visitDraft.items = {};
+  isSavingVisit = true;
   isSaving = true;
   const saveBtn = $("saveVisitBtn");
+  const oldSaveText = saveBtn ? saveBtn.textContent : "";
   
   try {
     if (saveBtn) {
@@ -2555,11 +2561,12 @@ async function saveVisit() {
     console.error("saveVisit ошибка:", e);
     showToast("Ошибка сохранения визита", true);
   } finally {
+    isSavingVisit = false;
     isSaving = false;
     const saveBtn = $("saveVisitBtn");
     if (saveBtn) {
       saveBtn.disabled = false;
-      saveBtn.textContent = "СОХРАНИТЬ ВИЗИТ";
+      saveBtn.textContent = oldSaveText || "СОХРАНИТЬ ВИЗИТ";
     }
   }
 }
@@ -2808,24 +2815,40 @@ function renderStores() {
 }
 
 async function saveStore() {
-  const name = $("sName").value.trim();
-  if (!name) { showToast("Введи название", true); return; }
-  const isNew = !$("sId").value;
-  const id = $("sId").value || uid();
-  const now = new Date().toISOString();
-  const obj = {
-    id,
-    agent_id: CURRENT_AGENT_ID,
-    name,
-    address: $("sAddress").value.trim(),
-    contact: $("sContact").value.trim(),
-    phone: $("sPhone").value.trim(),
-    comment: $("sComment").value.trim(),
-    status: "active",
-    is_active: true,
-    updated_at: now
-  };
+  if (isSavingStore) {
+    showToast("Сохранение уже идёт...");
+    return;
+  }
+  isSavingStore = true;
+  const saveBtn = $("saveStoreBtn");
+  const oldSaveText = saveBtn ? saveBtn.textContent : "";
   try {
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Сохранение...";
+    }
+    const name = $("sName").value.trim();
+    if (!name) { showToast("Введи название", true); return; }
+    const isNew = !$("sId").value;
+    const normalizedName = name.toLowerCase();
+    if (isNew && DB.stores.some(s => isActiveStore(s) && String(s.name || "").trim().toLowerCase() === normalizedName)) {
+      showToast("Магазин уже существует");
+      return;
+    }
+    const id = $("sId").value || uid();
+    const now = new Date().toISOString();
+    const obj = {
+      id,
+      agent_id: CURRENT_AGENT_ID,
+      name,
+      address: $("sAddress").value.trim(),
+      contact: $("sContact").value.trim(),
+      phone: $("sPhone").value.trim(),
+      comment: $("sComment").value.trim(),
+      status: "active",
+      is_active: true,
+      updated_at: now
+    };
     let r;
     if (isNew) {
       obj.created_at = now;
@@ -2852,6 +2875,12 @@ async function saveStore() {
   } catch(e) {
     console.error("saveStore error:", e);
     showToast("Ошибка сохранения магазина", true);
+  } finally {
+    isSavingStore = false;
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = oldSaveText || "Сохранить";
+    }
   }
 }
 
@@ -3069,90 +3098,111 @@ function renderShift() {
 }
 
 async function startShift() {
-  if (blockIfProductsNotCloud()) return;
-  const d = getDate();
-  const openShift = await refreshCurrentOpenShift(CURRENT_AGENT_ID);
-  if (openShift) {
-    if (openShift.work_date === d) {
-      showToast("Смена уже начата");
-      renderAll();
-      return;
-    }
-    showToast("Сначала закройте текущую смену", true);
+  if (isStartingShift) {
+    showToast("Сохранение уже идёт...");
     return;
   }
-
-  const existingShift = await getShiftByDate(CURRENT_AGENT_ID, d);
-  if (existingShift) {
-    if (existingShift.status === "open") {
-      currentOpenShift = existingShift;
-      await refreshCurrentOpenShift(CURRENT_AGENT_ID);
-      renderAll();
-      showToast("Смена уже начата");
-      return;
-    }
-    if (existingShift.status === "closed") {
-      showToast("Смена за этот день уже закрыта", true);
-      return;
-    }
-  }
-
-  stockDraft = {};
-  PRODUCTS.forEach(p => { const el = $("stk-" + p.id); stockDraft[p.id] = Math.max(0, Number(el?.value || 0)); });
-
-  const stockItems = { ...stockDraft };
-
-  // ШАГ 1: Сначала создаём смену в Supabase
-  const shiftId = `${CURRENT_AGENT_ID}_${d}_${Date.now()}`;
+  if (blockIfProductsNotCloud()) return;
+  isStartingShift = true;
+  const startBtn = $("startShiftBtn");
+  const oldStartText = startBtn ? startBtn.textContent : "";
   try {
-    const r = await fetch(SHIFTS_URL, {
-      method: "POST",
-      headers: { ...SUPA_HEAD, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: shiftId,
-        agent_id: CURRENT_AGENT_ID,
-        work_date: d,
-        status: "open",
-        started_at: new Date().toISOString(),
-        start_stock: { ...stockItems }
-      })
-    });
-    if (!r.ok) {
-      const errText = await r.text();
-      if (r.status === 409 || errText.includes("duplicate key")) {
-        const shift = await getShiftByDate(CURRENT_AGENT_ID, d);
-        if (shift?.status === "open") {
-          // Смена уже есть — подтягиваем актуальные остатки из облака
-          currentOpenShift = shift;
-          await loadStockFromCloud();
-          await refreshCurrentOpenShift(CURRENT_AGENT_ID);
-          renderAll();
-          showToast("Смена уже была начата. Остатки загружены из облака.");
-          return;
-        }
-        if (shift?.status === "closed") {
-          showToast("Смена за этот день уже закрыта", true);
-          return;
-        }
-        console.error("startShift 409 unexpected shift:", shift);
-        showToast("Ошибка начала смены", true);
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.textContent = "Сохранение...";
+    }
+    const d = getDate();
+    const openShift = await refreshCurrentOpenShift(CURRENT_AGENT_ID);
+    if (openShift) {
+      if (openShift.work_date === d) {
+        showToast("Смена уже начата");
+        renderAll();
         return;
       }
+      showToast("Сначала закройте текущую смену", true);
+      return;
+    }
+
+    const existingShift = await getShiftByDate(CURRENT_AGENT_ID, d);
+    if (existingShift) {
+      if (existingShift.status === "open") {
+        currentOpenShift = existingShift;
+        await refreshCurrentOpenShift(CURRENT_AGENT_ID);
+        renderAll();
+        showToast("Смена уже начата");
+        return;
+      }
+      if (existingShift.status === "closed") {
+        showToast("Смена за этот день уже закрыта", true);
+        return;
+      }
+    }
+
+    stockDraft = {};
+    PRODUCTS.forEach(p => { const el = $("stk-" + p.id); stockDraft[p.id] = Math.max(0, Number(el?.value || 0)); });
+
+    const stockItems = { ...stockDraft };
+
+    // ШАГ 1: Сначала создаём смену в Supabase
+    const shiftId = `${CURRENT_AGENT_ID}_${d}_${Date.now()}`;
+    try {
+      const r = await fetch(SHIFTS_URL, {
+        method: "POST",
+        headers: { ...SUPA_HEAD, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: shiftId,
+          agent_id: CURRENT_AGENT_ID,
+          work_date: d,
+          status: "open",
+          started_at: new Date().toISOString(),
+          start_stock: { ...stockItems }
+        })
+      });
+      if (!r.ok) {
+        const errText = await r.text();
+        if (r.status === 409 || errText.includes("duplicate key")) {
+          const shift = await getShiftByDate(CURRENT_AGENT_ID, d);
+          if (shift?.status === "open") {
+            // Смена уже есть — подтягиваем актуальные остатки из облака
+            currentOpenShift = shift;
+            await loadStockFromCloud();
+            await refreshCurrentOpenShift(CURRENT_AGENT_ID);
+            renderAll();
+            showToast("Смена уже была начата. Остатки загружены из облака.");
+            return;
+          }
+          if (shift?.status === "closed") {
+            showToast("Смена за этот день уже закрыта", true);
+            return;
+          }
+          console.error("startShift 409 unexpected shift:", shift);
+          showToast("Ошибка начала смены", true);
+          return;
+        }
+        // Смена не создалась — НЕ сохраняем остатки, НЕ меняем локально
+        showToast("Ошибка начала смены. Остатки не сохранены.", true);
+        return;
+      }
+    } catch (e) {
+      console.error("startShift error:", e);
       // Смена не создалась — НЕ сохраняем остатки, НЕ меняем локально
       showToast("Ошибка начала смены. Остатки не сохранены.", true);
       return;
     }
-  } catch (e) {
-    console.error("startShift error:", e);
-    // Смена не создалась — НЕ сохраняем остатки, НЕ меняем локально
-    showToast("Ошибка начала смены. Остатки не сохранены.", true);
-    return;
-  }
 
-  // ШАГ 2: Смена создана успешно — теперь сохраняем остатки
-  try {
-    const stockSaved = await saveStockToCloud(stockItems);
-    if (stockSaved === false) {
+    // ШАГ 2: Смена создана успешно — теперь сохраняем остатки
+    try {
+      const stockSaved = await saveStockToCloud(stockItems);
+      if (stockSaved === false) {
+        // Откатываем смену
+        try {
+          await fetch(SHIFTS_URL + "?id=eq." + encodeURIComponent(shiftId), { method: "DELETE", headers: SUPA_HEAD });
+        } catch (re) { console.error("startShift shift rollback error:", re); }
+        showToast("Остатки не сохранились в облако. Смена отменена.", true);
+        return;
+      }
+    } catch (e) {
+      console.error("startShift stock save error:", e);
       // Откатываем смену
       try {
         await fetch(SHIFTS_URL + "?id=eq." + encodeURIComponent(shiftId), { method: "DELETE", headers: SUPA_HEAD });
@@ -3160,29 +3210,27 @@ async function startShift() {
       showToast("Остатки не сохранились в облако. Смена отменена.", true);
       return;
     }
-  } catch (e) {
-    console.error("startShift stock save error:", e);
-    // Откатываем смену
-    try {
-      await fetch(SHIFTS_URL + "?id=eq." + encodeURIComponent(shiftId), { method: "DELETE", headers: SUPA_HEAD });
-    } catch (re) { console.error("startShift shift rollback error:", re); }
-    showToast("Остатки не сохранились в облако. Смена отменена.", true);
-    return;
-  }
 
-  // ШАГ 3: Оба шага успешны — обновляем локально
-  if (isFlatStockMap(DB.stock)) {
-    DB.stock = { ...stockItems };
-  } else {
-    const target = getStockForAgent(d);
-    target.items = { ...stockItems };
-  }
+    // ШАГ 3: Оба шага успешны — обновляем локально
+    if (isFlatStockMap(DB.stock)) {
+      DB.stock = { ...stockItems };
+    } else {
+      const target = getStockForAgent(d);
+      target.items = { ...stockItems };
+    }
 
-  stockDraft = {};
-  await refreshCurrentOpenShift(CURRENT_AGENT_ID);
-  saveLocal();
-  renderAll();
-  showToast("✅ Смена начата");
+    stockDraft = {};
+    await refreshCurrentOpenShift(CURRENT_AGENT_ID);
+    saveLocal();
+    renderAll();
+    showToast("✅ Смена начата");
+  } finally {
+    isStartingShift = false;
+    if (startBtn) {
+      startBtn.textContent = oldStartText || "▶ Начать смену";
+      startBtn.disabled = hasOpenShift() || !PRODUCTS_FROM_CLOUD;
+    }
+  }
 }
 
 async function editShift() {
@@ -3221,53 +3269,73 @@ async function editShift() {
 }
 
 async function closeShift() {
-  if (blockIfProductsNotCloud()) return;
-  const d = getDate();
-  const openShift = await refreshCurrentOpenShift(CURRENT_AGENT_ID);
-  if (!openShift) { showToast("Открытой смены нет", true); return; }
-  const s = shiftStats(d);
-  if (!confirm(`Закрыть смену?\nПродано: ${s.soldQty} шт / ${money(s.soldSum)}\nОбмен: ${s.exchQty} шт / ${money(s.exchSum)}\nВернуть: ${s.leftoverQty} шт / ${money(s.leftoverSum)}\n\nДанные уйдут в архив.`)) return;
-
-  const endStock = {};
-  // end_stock = текущий физический остаток из DB.stock
-  PRODUCTS.forEach(p => { endStock[p.id] = Number(DB.stock[p.id] || 0); });
-
-  try {
-    const r = await fetch(SHIFTS_URL + "?id=eq." + encodeURIComponent(openShift.id), {
-      method: "PATCH",
-      headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: "return=minimal" },
-      body: JSON.stringify({ status: "closed", closed_at: new Date().toISOString(), end_stock: endStock })
-    });
-    if (!r.ok) throw new Error(await r.text());
-  } catch (e) {
-    console.error("closeShift error:", e);
-    showToast("Ошибка закрытия смены", true);
+  if (isClosingShift) {
+    showToast("Сохранение уже идёт...");
     return;
   }
-
-  const zeroStock = PRODUCTS.reduce((acc, p) => { acc[p.id] = 0; return acc; }, {});
-  let zeroStockSaved = false;
+  if (blockIfProductsNotCloud()) return;
+  isClosingShift = true;
+  const closeBtn = $("endShiftBtn");
+  const oldCloseText = closeBtn ? closeBtn.textContent : "";
   try {
-    zeroStockSaved = await saveStockToCloud(zeroStock);
-  } catch (e) {
-    console.error("closeShift zero stock error:", e);
-  }
-  if (!zeroStockSaved) {
-    showToast("Смена закрыта, но остатки не обнулились в облаке. Проверь интернет и обратись к админу.", true);
+    if (closeBtn) {
+      closeBtn.disabled = true;
+      closeBtn.textContent = "Сохранение...";
+    }
+    const d = getDate();
+    await refreshCurrentOpenShift(CURRENT_AGENT_ID);
+    const openShift = currentOpenShift;
+    if (!openShift) { showToast("Открытой смены нет", true); return; }
+    const s = shiftStats(d);
+    if (!confirm(`Закрыть смену?\nПродано: ${s.soldQty} шт / ${money(s.soldSum)}\nОбмен: ${s.exchQty} шт / ${money(s.exchSum)}\nВернуть: ${s.leftoverQty} шт / ${money(s.leftoverSum)}\n\nДанные уйдут в архив.`)) return;
+
+    const endStock = {};
+    // end_stock = текущий физический остаток из DB.stock
+    PRODUCTS.forEach(p => { endStock[p.id] = Number(DB.stock[p.id] || 0); });
+
+    try {
+      const r = await fetch(SHIFTS_URL + "?id=eq." + encodeURIComponent(openShift.id), {
+        method: "PATCH",
+        headers: { ...SUPA_HEAD, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "closed", closed_at: new Date().toISOString(), end_stock: endStock })
+      });
+      if (!r.ok) throw new Error(await r.text());
+    } catch (e) {
+      console.error("closeShift error:", e);
+      showToast("Ошибка закрытия смены", true);
+      return;
+    }
+
+    const zeroStock = PRODUCTS.reduce((acc, p) => { acc[p.id] = 0; return acc; }, {});
+    let zeroStockSaved = false;
+    try {
+      zeroStockSaved = await saveStockToCloud(zeroStock);
+    } catch (e) {
+      console.error("closeShift zero stock error:", e);
+    }
+    if (!zeroStockSaved) {
+      showToast("Смена закрыта, но остатки не обнулились в облаке. Проверь интернет и обратись к админу.", true);
+      await refreshCurrentOpenShift(CURRENT_AGENT_ID);
+      await loadStockFromCloud();
+      return;
+    }
     await refreshCurrentOpenShift(CURRENT_AGENT_ID);
     await loadStockFromCloud();
-    return;
+    const stockAfterClose = getStockForAgent(d).items || {};
+    const stockIsZero = PRODUCTS.every(p => Number(stockAfterClose[p.id]) === 0);
+    if (!stockIsZero) {
+      showToast("Смена закрыта, но остатки не обнулились в облаке. Проверь интернет и обратись к админу.", true);
+      return;
+    }
+    renderAll();
+    showToast("✅ Смена закрыта");
+  } finally {
+    isClosingShift = false;
+    if (closeBtn) {
+      closeBtn.textContent = oldCloseText || "🔒 Закончить смену";
+      closeBtn.disabled = !hasOpenShift() || !PRODUCTS_FROM_CLOUD;
+    }
   }
-  await refreshCurrentOpenShift(CURRENT_AGENT_ID);
-  await loadStockFromCloud();
-  const stockAfterClose = getStockForAgent(d).items || {};
-  const stockIsZero = PRODUCTS.every(p => Number(stockAfterClose[p.id]) === 0);
-  if (!stockIsZero) {
-    showToast("Смена закрыта, но остатки не обнулились в облаке. Проверь интернет и обратись к админу.", true);
-    return;
-  }
-  renderAll();
-  showToast("✅ Смена закрыта");
 }
 
 function renderHistory() {
